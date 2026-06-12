@@ -9,7 +9,7 @@ import {
   markSolved,
   upvoteQuestion,
   getQuestion,
-  searchQuestions,
+  searchQuestionsInProject,
   getAllQuestions,
   getQuestionsByRepository,
   getQuestionsByStatus,
@@ -207,7 +207,7 @@ describe('TokensOverflow API', () => {
     postQuestion(input1, session, testDir);
     postQuestion(input2, session, testDir);
 
-    const results = searchQuestions('typescript', testDir);
+    const results = searchQuestionsInProject('typescript', testDir);
     expect(results.length).toBeGreaterThan(0);
     expect(results[0].question.title).toContain('TypeScript');
     expect(results[0].matchedKeywords).toContain('typescript');

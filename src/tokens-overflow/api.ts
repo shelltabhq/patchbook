@@ -139,7 +139,9 @@ export function getQuestion(
   return loadQuestion(questionId, projectRoot);
 }
 
-export function searchQuestions(
+// Search functionality is provided by the search.ts module
+// For internal use within api.ts, we use performSearch
+export function searchQuestionsInProject(
   query: string,
   projectRoot?: string
 ): SearchResult[] {
