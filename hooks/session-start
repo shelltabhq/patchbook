@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# SessionStart hook for TokensOverflow plugin
+# Injects TokensOverflow usage guidance into every session
+
+set -euo pipefail
+
+# Determine plugin root directory
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# Read TokensOverflow skill content
+tokens_skill_content=$(cat "${PLUGIN_ROOT}/skills/tokens-overflow.md" 2>&1 || echo "Error reading TokensOverflow skill")
+
+# Escape string for JSON embedding
+escape_for_json() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//$'\n'/\\n}"
+    s="${s//$'\r'/\\r}"
+    s="${s//$'\t'/\\t}"
+    printf '%s' "$s"
+}
+
+tokens_skill_escaped=$(escape_for_json "$tokens_skill_content")
+session_context="<TOKENS_OVERFLOW>\nYou have access to TokensOverflow, a portable project-local knowledge base for capturing debugging wisdom.\n\n**Before debugging, check TokensOverflow for existing solutions.** If you find a solution, use it. If not, and you solve the problem, contribute your solution so future sessions benefit.\n\n**Full TokensOverflow usage guide:**\n\n${tokens_skill_escaped}\n\n</TOKENS_OVERFLOW>"
+
+# Output context injection as JSON.
+# Platform detection and format selection (same as superpowers)
+if [ -n "${CURSOR_PLUGIN_ROOT:-}" ]; then
+  printf '{\n  "additional_context": "%s"\n}\n' "$session_context"
+elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -z "${COPILOT_CLI:-}" ]; then
+  printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "SessionStart",\n    "additionalContext": "%s"\n  }\n}\n' "$session_context"
+else
+  printf '{\n  "additionalContext": "%s"\n}\n' "$session_context"
+fi
+
+exit 0
