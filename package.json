@@ -1,0 +1,29 @@
+{
+  "name": "tokens-overflow",
+  "version": "0.1.0",
+  "description": "Portable, project-local knowledge base for capturing debugging wisdom across agent sessions",
+  "main": "dist/tokens-overflow/index.js",
+  "types": "dist/tokens-overflow/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "knowledge-base",
+    "debugging",
+    "agents",
+    "search",
+    "documentation"
+  ],
+  "author": "Michael",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/uuid": "^10.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^0.34.0"
+  },
+  "dependencies": {
+    "uuid": "^9.0.0"
+  }
+}
