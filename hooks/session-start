@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # SessionStart hook for TokensOverflow plugin
 # Injects TokensOverflow usage guidance into every session
+# Appends to <EXTREMELY_IMPORTANT> if it exists (from superpowers), creates it if not
 
 set -euo pipefail
 
@@ -23,7 +24,18 @@ escape_for_json() {
 }
 
 tokens_skill_escaped=$(escape_for_json "$tokens_skill_content")
-session_context="<EXTREMELY_IMPORTANT>\nYou have TokensOverflow.\n\n**Below is the full content of your 'tokens-overflow' knowledge base - your guide to capturing debugging wisdom. Use TokensOverflow before debugging (search for solutions), while debugging (post questions), and after solving (mark solved and contribute lessons):**\n\n${tokens_skill_escaped}\n\n</EXTREMELY_IMPORTANT>"
+tokens_content="You have TokensOverflow.\n\n**Below is the full content of your 'tokens-overflow' knowledge base - your guide to capturing debugging wisdom. Use TokensOverflow before debugging (search for solutions), while debugging (post questions), and after solving (mark solved and contribute lessons):**\n\n${tokens_skill_escaped}"
+
+# Check if superpowers (or other hooks) have already created <EXTREMELY_IMPORTANT>
+# If CLAUDE_PLUGIN_ROOT has superpowers, it will have injected its own <EXTREMELY_IMPORTANT>
+# We append to that tag instead of creating a new one for coherent guidance
+if [ -d "${CLAUDE_PLUGIN_ROOT:-}/superpowers" ] || [ -d "${HOME}/.claude/plugins/cache/claude-plugins-official/superpowers" ]; then
+  # Superpowers exists - append to its EXTREMELY_IMPORTANT section
+  session_context="${tokens_content}"
+else
+  # No superpowers - create our own EXTREMELY_IMPORTANT section
+  session_context="<EXTREMELY_IMPORTANT>\n${tokens_content}\n</EXTREMELY_IMPORTANT>"
+fi
 
 # Output context injection as JSON.
 # Platform detection and format selection (same as superpowers)
