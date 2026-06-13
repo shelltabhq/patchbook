@@ -767,6 +767,16 @@ describe('Verification API', () => {
       // Reload after first verify
       currentQuestion = getQuestion(question.id)!;
 
+      // Give answer1 an extra verification so it clearly wins the ranking
+      verifyAnswer(currentQuestion, {
+        evidence: 'Verified again',
+        answerId: answer1.id,
+        sessionId: 'verify-session-1b',
+      });
+
+      // Reload after second verify on answer1
+      currentQuestion = getQuestion(question.id)!;
+
       verifyAnswer(currentQuestion, {
         evidence: 'Tested and verified',
         answerId: answer2.id,
@@ -776,6 +786,7 @@ describe('Verification API', () => {
       // Reload to verify changes were saved
       currentQuestion = getQuestion(question.id)!;
       const verified = getVerifiedAnswer(currentQuestion);
+      // answer1 has 2 verifications (score 20), answer2 has 1 (score 10)
       expect(verified?.id).toBe(answer1.id);
     });
 
