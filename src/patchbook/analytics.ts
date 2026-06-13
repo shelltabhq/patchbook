@@ -1,4 +1,6 @@
 import { Answer, Question } from './types';
+import { saveAnalyticsEvent, listAnalyticsEvents } from './storage';
+import { v4 as uuidv4 } from 'uuid';
 
 export type AnalyticsEventType =
   | 'question_posted'
@@ -21,11 +23,8 @@ export interface AnalyticsEvent {
   };
 }
 
-// In-memory storage for analytics events
-const analyticsStore: AnalyticsEvent[] = [];
-
 function generateAnalyticsId(): string {
-  return `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  return `evt_${uuidv4().replace(/-/g, '').slice(0, 12)}`;
 }
 
 export function trackEvent(
@@ -41,7 +40,12 @@ export function trackEvent(
     metadata,
   };
 
-  analyticsStore.push(event);
+  try {
+    saveAnalyticsEvent(event.id, event);
+  } catch (error) {
+    console.error('Failed to save analytics event:', error);
+  }
+
   return event;
 }
 
@@ -49,17 +53,23 @@ export function getAnalyticsEvents(
   eventType?: AnalyticsEventType,
   limit?: number
 ): AnalyticsEvent[] {
-  let events = analyticsStore;
+  try {
+    const allEvents = listAnalyticsEvents() as AnalyticsEvent[];
+    let events = allEvents;
 
-  if (eventType) {
-    events = events.filter((e) => e.eventType === eventType);
+    if (eventType) {
+      events = events.filter((e) => e.eventType === eventType);
+    }
+
+    if (limit) {
+      return events.slice(-limit);
+    }
+
+    return events;
+  } catch (error) {
+    console.error('Failed to load analytics events:', error);
+    return [];
   }
-
-  if (limit) {
-    return events.slice(-limit);
-  }
-
-  return events;
 }
 
 export function calculateVerificationRate(questions: Question[]): number {
@@ -145,7 +155,7 @@ export function calculateMetrics(questions: Question[]): MetricsReport {
     search_performed: 0,
   };
 
-  for (const event of analyticsStore) {
+  for (const event of getAnalyticsEvents()) {
     eventCounts[event.eventType]++;
   }
 
@@ -169,6 +179,3 @@ export function calculateMetrics(questions: Question[]): MetricsReport {
   };
 }
 
-export function clearAnalyticsEvents(): void {
-  analyticsStore.length = 0;
-}

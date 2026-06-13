@@ -251,6 +251,7 @@ describe('Verification API', () => {
 
     it('marks question as verified when answer is verified', () => {
       verifyAnswer(question, {
+        evidence: 'Tested and verified',
         answerId: answer.id,
         sessionId: 'verify-session-1',
       });
@@ -258,13 +259,14 @@ describe('Verification API', () => {
       expect(question.status).toBe('verified');
     });
 
-    it('accepts optional evidence', () => {
+    it('requires evidence when verifying', () => {
       const signal1 = verifyAnswer(question, {
+        evidence: 'Tested on main: npm test passed, 42 test cases passing',
         answerId: answer.id,
         sessionId: 'verify-session-1',
       });
 
-      expect((signal1 as any).evidence).toBeUndefined();
+      expect(signal1.evidence).toBe('Tested on main: npm test passed, 42 test cases passing');
 
       const answer2 = postAnswer(
         question,
@@ -279,15 +281,26 @@ describe('Verification API', () => {
       const signal2 = verifyAnswer(question, {
         answerId: answer2.id,
         sessionId: 'verify-session-2',
-        evidence: 'Works in all test cases',
+        evidence: 'Works in all test cases including edge cases',
       });
 
-      expect((signal2 as any).evidence).toBe('Works in all test cases');
+      expect(signal2.evidence).toBe('Works in all test cases including edge cases');
+    });
+
+    it('throws error when evidence is missing', () => {
+      expect(() => {
+        verifyAnswer(question, {
+          evidence: '',
+          answerId: answer.id,
+          sessionId: 'verify-session-1',
+        });
+      }).toThrow('Verification evidence is required');
     });
 
     it('throws error when answer not found', () => {
       expect(() => {
         verifyAnswer(question, {
+          evidence: 'Tested and verified',
           answerId: 'nonexistent-id',
           sessionId: 'verify-session-1',
         });
@@ -296,6 +309,7 @@ describe('Verification API', () => {
 
     it('allows multiple verifications on same answer', () => {
       verifyAnswer(question, {
+        evidence: 'Tested and verified',
         answerId: answer.id,
         sessionId: 'verify-session-1',
       });
@@ -513,6 +527,7 @@ describe('Verification API', () => {
       );
 
       verifyAnswer(question, {
+        evidence: 'Tested and verified',
         answerId: answer1.id,
         sessionId: 'verify-session-1',
       });
@@ -524,6 +539,7 @@ describe('Verification API', () => {
       });
 
       verifyAnswer(question, {
+        evidence: 'Tested and verified',
         answerId: answer1.id,
         sessionId: 'verify-session-2',
       });
@@ -577,6 +593,7 @@ describe('Verification API', () => {
       );
 
       verifyAnswer(question, {
+        evidence: 'Tested and verified',
         answerId: answer1.id,
         sessionId: 'verify-session-1',
       });
@@ -627,11 +644,13 @@ describe('Verification API', () => {
       );
 
       verifyAnswer(question, {
+        evidence: 'Tested and verified',
         answerId: answer1.id,
         sessionId: 'verify-session-1',
       });
 
       verifyAnswer(question, {
+        evidence: 'Tested and verified',
         answerId: answer2.id,
         sessionId: 'verify-session-2',
       });
@@ -668,6 +687,7 @@ describe('Verification API', () => {
       });
 
       verifyAnswer(question, {
+        evidence: 'Tested and verified',
         answerId: answer2.id,
         sessionId: 'verify-session-1',
       });
@@ -833,6 +853,7 @@ describe('Verification API', () => {
       );
 
       verifyAnswer(question, {
+        evidence: 'Tested and verified',
         answerId: answer.id,
         sessionId: 'verify-session-1',
       });
@@ -882,6 +903,7 @@ describe('Verification API', () => {
       );
 
       verifyAnswer(question, {
+        evidence: 'Tested and verified',
         answerId: answer1.id,
         sessionId: 'verify-session-1',
       });
@@ -1086,6 +1108,7 @@ describe('Verification API', () => {
       expect(question.status).toBe('candidate');
 
       verifyAnswer(question, {
+        evidence: 'Tested and verified',
         answerId: answer.id,
         sessionId: 'verify-session-1',
       });

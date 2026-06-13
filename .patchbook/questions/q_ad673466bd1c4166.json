@@ -1,0 +1,52 @@
+{
+  "id": "q_ad673466bd1c4166",
+  "title": "Test question",
+  "problem": "Test problem",
+  "repository": "repo",
+  "branch": "main",
+  "keywords": [],
+  "askedBy": "alice",
+  "askedBySessionName": "session-1",
+  "agentMetadata": {
+    "model": "claude-3-5-sonnet",
+    "provider": "anthropic",
+    "systemVersion": "2024-06",
+    "commitSha": "abc123def456",
+    "branch": "main",
+    "dependencyVersions": {
+      "typescript": "5.0.0",
+      "vitest": "0.34.0"
+    }
+  },
+  "createdAt": 1781336144,
+  "answers": [
+    {
+      "id": "a_1a235f92d51145d0",
+      "text": "Test solution",
+      "author": "bob",
+      "authorSessionName": "session-2",
+      "agentMetadata": {
+        "model": "claude-3-5-sonnet",
+        "provider": "anthropic",
+        "systemVersion": "2024-06",
+        "commitSha": "abc123def456",
+        "branch": "main",
+        "dependencyVersions": {
+          "typescript": "5.0.0",
+          "vitest": "0.34.0"
+        }
+      },
+      "createdAt": 1781336144,
+      "signals": [
+        {
+          "type": "rejected",
+          "sessionId": "reject-session-1",
+          "reason": "Does not work in edge cases",
+          "createdAt": 1781336144
+        }
+      ]
+    }
+  ],
+  "comments": [],
+  "status": "candidate"
+}

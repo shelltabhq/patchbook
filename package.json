@@ -1,9 +1,9 @@
 {
-  "name": "tokens-overflow",
+  "name": "patchbook",
   "version": "0.1.0",
-  "description": "Portable, project-local knowledge base for capturing debugging wisdom across agent sessions",
-  "main": "dist/tokens-overflow/index.js",
-  "types": "dist/tokens-overflow/index.d.ts",
+  "description": "Verification-signal knowledge base for agent workflows with evidence-backed solutions",
+  "main": "dist/patchbook/index.js",
+  "types": "dist/patchbook/index.d.ts",
   "scripts": {
     "build": "tsc",
     "test": "vitest",

@@ -1,0 +1,17 @@
+{
+  "id": "evt_01047c51c13a",
+  "eventType": "question_posted",
+  "timestamp": 1781336273,
+  "data": {
+    "questionId": "q_95c2526bad754f0d",
+    "title": "How to debug TypeScript errors?",
+    "keywords": [
+      "typescript",
+      "debugging"
+    ]
+  },
+  "metadata": {
+    "questionId": "q_95c2526bad754f0d",
+    "userId": "alice"
+  }
+}

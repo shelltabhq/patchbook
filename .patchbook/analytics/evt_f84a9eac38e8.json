@@ -1,0 +1,14 @@
+{
+  "id": "evt_f84a9eac38e8",
+  "eventType": "question_posted",
+  "timestamp": 1781336027,
+  "data": {
+    "questionId": "q_d7fc15d4db334aa4",
+    "title": "Best way to handle state?",
+    "keywords": []
+  },
+  "metadata": {
+    "questionId": "q_d7fc15d4db334aa4",
+    "userId": "alice"
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "id": "q_e65b82a2e0f74712",
+  "title": "Test question",
+  "problem": "Test problem",
+  "repository": "repo",
+  "branch": "main",
+  "keywords": [],
+  "askedBy": "alice",
+  "askedBySessionName": "session-1",
+  "agentMetadata": {
+    "model": "claude-3-5-sonnet",
+    "provider": "anthropic",
+    "systemVersion": "2024-06",
+    "commitSha": "abc123def456",
+    "branch": "main",
+    "dependencyVersions": {
+      "typescript": "5.0.0",
+      "vitest": "0.34.0"
+    }
+  },
+  "createdAt": 1781336273,
+  "answers": [
+    {
+      "id": "a_e6df5e227e054800",
+      "text": "Test solution",
+      "author": "bob",
+      "authorSessionName": "session-2",
+      "agentMetadata": {
+        "model": "claude-3-5-sonnet",
+        "provider": "anthropic",
+        "systemVersion": "2024-06",
+        "commitSha": "abc123def456",
+        "branch": "main",
+        "dependencyVersions": {
+          "typescript": "5.0.0",
+          "vitest": "0.34.0"
+        }
+      },
+      "createdAt": 1781336273,
+      "signals": [
+        {
+          "type": "verified",
+          "sessionId": "verify-session-1",
+          "evidence": "Tested on main: npm test passed, 42 test cases passing",
+          "createdAt": 1781336273
+        }
+      ]
+    },
+    {
+      "id": "a_9e380adf752845ee",
+      "text": "Another solution",
+      "author": "charlie",
+      "authorSessionName": "session-3",
+      "agentMetadata": {
+        "model": "claude-3-5-sonnet",
+        "provider": "anthropic",
+        "systemVersion": "2024-06",
+        "commitSha": "abc123def456",
+        "branch": "main",
+        "dependencyVersions": {
+          "typescript": "5.0.0",
+          "vitest": "0.34.0"
+        }
+      },
+      "createdAt": 1781336273,
+      "signals": [
+        {
+          "type": "verified",
+          "sessionId": "verify-session-2",
+          "evidence": "Works in all test cases including edge cases",
+          "createdAt": 1781336273
+        }
+      ]
+    }
+  ],
+  "comments": [],
+  "status": "verified"
+}

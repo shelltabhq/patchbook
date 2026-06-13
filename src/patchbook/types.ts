@@ -11,7 +11,7 @@ export type AnswerSignal =
   | {
       type: "verified";
       sessionId: string;
-      evidence?: string;
+      evidence: string;
       createdAt: number;
     }
   | {
@@ -82,7 +82,7 @@ export interface SearchResult {
   matchedKeywords: string[];
 }
 
-export interface TokensOverflowConfig {
+export interface PatchbookConfig {
   projectRoot: string;
   repositoryName: string;
 }

@@ -1,0 +1,14 @@
+{
+  "id": "evt_412191be8303",
+  "eventType": "comment_posted",
+  "timestamp": 1781336144,
+  "data": {
+    "commentId": "cmt_936b334b186949d7",
+    "questionId": "q_9bcf6cf5ffed4de7",
+    "commentLength": 9
+  },
+  "metadata": {
+    "questionId": "q_9bcf6cf5ffed4de7",
+    "userId": "bob"
+  }
+}

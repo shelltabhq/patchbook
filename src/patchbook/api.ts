@@ -6,8 +6,10 @@ import {
   Comment,
   Question,
   QuestionStatus,
+  SearchResult,
 } from './types';
 import { trackEvent } from './analytics';
+import { saveQuestion, loadQuestion, listAllQuestions } from './storage';
 
 export function captureAgentMetadata(): AgentMetadata {
   return {
@@ -55,6 +57,13 @@ export function postQuestion(
   input: PostQuestionInput,
   agentMetadata: AgentMetadata
 ): Question {
+  if (!input.title?.trim()) {
+    throw new Error('Question title is required');
+  }
+  if (!input.problem?.trim()) {
+    throw new Error('Question problem description is required');
+  }
+
   const question: Question = {
     id: generateId('q'),
     title: input.title,
@@ -70,6 +79,8 @@ export function postQuestion(
     comments: [],
     status: 'open',
   };
+
+  saveQuestion(question);
 
   trackEvent(
     'question_posted',
@@ -98,6 +109,10 @@ export function postAnswer(
   input: PostAnswerInput,
   agentMetadata: AgentMetadata
 ): Answer {
+  if (!input.text?.trim()) {
+    throw new Error('Answer text is required');
+  }
+
   const answer: Answer = {
     id: generateId('a'),
     text: input.text,
@@ -110,6 +125,8 @@ export function postAnswer(
 
   question.answers.push(answer);
   question.status = computeQuestionStatus(question);
+
+  saveQuestion(question);
 
   trackEvent(
     'answer_posted',
@@ -131,16 +148,20 @@ export function postAnswer(
 export interface VerifyAnswerInput {
   answerId: string;
   sessionId: string;
-  evidence?: string;
+  evidence: string;
 }
 
 export function verifyAnswer(
   question: Question,
   input: VerifyAnswerInput
-): AnswerSignal {
+): Extract<AnswerSignal, { type: 'verified' }> {
   const answer = question.answers.find((a) => a.id === input.answerId);
   if (!answer) {
     throw new Error(`Answer ${input.answerId} not found`);
+  }
+
+  if (!input.evidence?.trim()) {
+    throw new Error('Verification evidence is required. Describe what you tested and what the results were.');
   }
 
   const signal: AnswerSignal = {
@@ -153,12 +174,14 @@ export function verifyAnswer(
   answer.signals.push(signal);
   question.status = computeQuestionStatus(question);
 
+  saveQuestion(question);
+
   trackEvent(
     'answer_verified',
     {
       answerId: answer.id,
       questionId: question.id,
-      evidence: input.evidence ? true : false,
+      evidenceLength: input.evidence.length,
       timeToVerification: signal.createdAt - answer.createdAt,
     },
     {
@@ -186,6 +209,10 @@ export function rejectAnswer(
     throw new Error(`Answer ${input.answerId} not found`);
   }
 
+  if (!input.reason?.trim()) {
+    throw new Error('Rejection reason is required. Explain why this answer doesn\'t work in your context.');
+  }
+
   const signal: AnswerSignal = {
     type: 'rejected',
     sessionId: input.sessionId,
@@ -196,12 +223,14 @@ export function rejectAnswer(
   answer.signals.push(signal);
   question.status = computeQuestionStatus(question);
 
+  saveQuestion(question);
+
   trackEvent(
     'answer_rejected',
     {
       answerId: answer.id,
       questionId: question.id,
-      reason: input.reason,
+      reasonLength: input.reason.length,
     },
     {
       answerId: answer.id,
@@ -222,6 +251,104 @@ export function getVerifiedAnswer(question: Question): Answer | null {
   return null;
 }
 
+export function getQuestion(questionId: string): Question | null {
+  return loadQuestion(questionId);
+}
+
+export function getAllQuestions(): Question[] {
+  return listAllQuestions();
+}
+
+export function getQuestionsByStatus(status: QuestionStatus): Question[] {
+  return getAllQuestions().filter((q) => q.status === status);
+}
+
+export function getVerifiedQuestions(): Question[] {
+  return getQuestionsByStatus('verified');
+}
+
+export function getContestedQuestions(): Question[] {
+  return getQuestionsByStatus('contested');
+}
+
+export function getUnansweredQuestions(): Question[] {
+  return getQuestionsByStatus('open');
+}
+
+export function searchQuestionsInProject(query: string): SearchResult[] {
+  const normalizedQuery = query.toLowerCase();
+  const queryTerms = normalizedQuery.split(/\s+/).filter(t => t.length > 0);
+
+  const questions = getAllQuestions();
+  const results: SearchResult[] = [];
+
+  for (const question of questions) {
+    const matchedKeywords: string[] = [];
+    let relevance = 0;
+
+    // Title match (highest weight)
+    if (question.title.toLowerCase().includes(normalizedQuery)) {
+      relevance += 10;
+      for (const term of queryTerms) {
+        if (question.title.toLowerCase().includes(term)) {
+          matchedKeywords.push(term);
+          relevance += 3;
+        }
+      }
+    }
+
+    // Problem match (medium weight)
+    if (question.problem.toLowerCase().includes(normalizedQuery)) {
+      relevance += 5;
+      for (const term of queryTerms) {
+        if (question.problem.toLowerCase().includes(term)) {
+          matchedKeywords.push(term);
+          relevance += 2;
+        }
+      }
+    }
+
+    // Keywords match (low weight)
+    for (const keyword of question.keywords) {
+      if (keyword.toLowerCase().includes(normalizedQuery)) {
+        relevance += 1;
+        matchedKeywords.push(keyword);
+      } else {
+        for (const term of queryTerms) {
+          if (keyword.toLowerCase().includes(term)) {
+            matchedKeywords.push(keyword);
+            relevance += 0.5;
+          }
+        }
+      }
+    }
+
+    // Answer text match (low weight)
+    for (const answer of question.answers) {
+      if (answer.text.toLowerCase().includes(normalizedQuery)) {
+        relevance += 1;
+        for (const term of queryTerms) {
+          if (answer.text.toLowerCase().includes(term)) {
+            relevance += 0.5;
+          }
+        }
+      }
+    }
+
+    if (relevance > 0) {
+      results.push({
+        question,
+        relevance,
+        matchedKeywords: [...new Set(matchedKeywords)],
+      });
+    }
+  }
+
+  // Sort by relevance (descending)
+  results.sort((a, b) => b.relevance - a.relevance);
+  return results;
+}
+
 export function postComment(
   question: Question,
   text: string,
@@ -229,6 +356,10 @@ export function postComment(
   authorSessionName: string,
   agentMetadata: AgentMetadata
 ): Comment {
+  if (!text?.trim()) {
+    throw new Error('Comment text is required');
+  }
+
   const comment: Comment = {
     id: generateId('cmt'),
     text,
@@ -239,6 +370,8 @@ export function postComment(
   };
 
   question.comments.push(comment);
+
+  saveQuestion(question);
 
   trackEvent(
     'comment_posted',

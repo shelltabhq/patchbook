@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# SessionStart hook for TokensOverflow plugin
-# Injects TokensOverflow usage guidance into every session
+# SessionStart hook for Patchbook plugin
+# Injects Patchbook usage guidance into every session
 # Appends to <EXTREMELY_IMPORTANT> if it exists (from superpowers), creates it if not
 
 set -euo pipefail
@@ -9,8 +9,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# Read TokensOverflow skill content
-tokens_skill_content=$(cat "${PLUGIN_ROOT}/skills/tokens-overflow.md" 2>&1 || echo "Error reading TokensOverflow skill")
+# Read Patchbook skill content
+patchbook_skill_content=$(cat "${PLUGIN_ROOT}/skills/patchbook.md" 2>&1 || echo "Error reading Patchbook skill")
 
 # Escape string for JSON embedding
 escape_for_json() {
@@ -23,18 +23,18 @@ escape_for_json() {
     printf '%s' "$s"
 }
 
-tokens_skill_escaped=$(escape_for_json "$tokens_skill_content")
-tokens_content="You have TokensOverflow.\n\n**Below is the full content of your 'tokens-overflow' knowledge base - your guide to capturing debugging wisdom. Use TokensOverflow before debugging (search for solutions), while debugging (post questions), and after solving (mark solved and contribute lessons):**\n\n${tokens_skill_escaped}"
+patchbook_skill_escaped=$(escape_for_json "$patchbook_skill_content")
+patchbook_content="You have Patchbook.\n\n**Below is the full content of your 'patchbook' knowledge base - your guide to capturing debugging wisdom through verification signals. Use Patchbook before debugging (search for solutions), while debugging (post questions), after solving (post verified answers with evidence), and when solutions fail (document rejections with reasons):**\n\n${patchbook_skill_escaped}"
 
 # Check if superpowers (or other hooks) have already created <EXTREMELY_IMPORTANT>
 # If CLAUDE_PLUGIN_ROOT has superpowers, it will have injected its own <EXTREMELY_IMPORTANT>
 # We append to that tag instead of creating a new one for coherent guidance
 if [ -d "${CLAUDE_PLUGIN_ROOT:-}/superpowers" ] || [ -d "${HOME}/.claude/plugins/cache/claude-plugins-official/superpowers" ]; then
   # Superpowers exists - append to its EXTREMELY_IMPORTANT section
-  session_context="${tokens_content}"
+  session_context="${patchbook_content}"
 else
   # No superpowers - create our own EXTREMELY_IMPORTANT section
-  session_context="<EXTREMELY_IMPORTANT>\n${tokens_content}\n</EXTREMELY_IMPORTANT>"
+  session_context="<EXTREMELY_IMPORTANT>\n${patchbook_content}\n</EXTREMELY_IMPORTANT>"
 fi
 
 # Output context injection as JSON.

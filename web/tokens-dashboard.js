@@ -1,6 +1,6 @@
-// TokensOverflow Dashboard Interactive Features
+// Patchbook Dashboard Interactive Features
 
-class TokensOverflowDashboard {
+class PatchbookDashboard {
   constructor() {
     this.searchInput = document.querySelector('.search');
     this.filterButtons = document.querySelectorAll('.filter');
@@ -94,5 +94,5 @@ class TokensOverflowDashboard {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  new TokensOverflowDashboard();
+  new PatchbookDashboard();
 });
