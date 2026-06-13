@@ -12,6 +12,7 @@ import {
   computeQuestionStatus,
   captureAgentMetadata,
   searchQuestionsInProject,
+  getQuestion,
 } from '../api';
 import { getAnalyticsEvents } from '../analytics';
 import {
@@ -166,9 +167,12 @@ describe('Verification API', () => {
       expect(answer.createdAt).toBeGreaterThan(0);
       expect(answer.agentMetadata).toEqual(agentMetadata);
 
-      expect(question.answers).toContain(answer);
-      expect(question.answers.length).toBe(1);
-      expect(question.status).toBe('candidate');
+      // Reload question from storage to verify changes were saved
+      const savedQuestion = getQuestion(question.id);
+      expect(savedQuestion).toBeDefined();
+      expect(savedQuestion!.answers).toContainEqual(answer);
+      expect(savedQuestion!.answers.length).toBe(1);
+      expect(savedQuestion!.status).toBe('candidate');
     });
 
     it('adds multiple answers', () => {
@@ -182,8 +186,11 @@ describe('Verification API', () => {
         agentMetadata
       );
 
+      // Reload question after first mutation
+      let currentQuestion = getQuestion(question.id)!;
+
       const answer2 = postAnswer(
-        question,
+        currentQuestion,
         {
           text: 'Solution 2',
           author: 'charlie',
@@ -192,9 +199,11 @@ describe('Verification API', () => {
         agentMetadata
       );
 
-      expect(question.answers.length).toBe(2);
-      expect(question.answers).toContain(answer1);
-      expect(question.answers).toContain(answer2);
+      // Reload question after second mutation
+      currentQuestion = getQuestion(question.id)!;
+      expect(currentQuestion.answers.length).toBe(2);
+      expect(currentQuestion.answers).toContainEqual(answer1);
+      expect(currentQuestion.answers).toContainEqual(answer2);
     });
 
     it('generates unique answer IDs', () => {
@@ -208,8 +217,11 @@ describe('Verification API', () => {
         agentMetadata
       );
 
+      // Reload question after first mutation
+      let currentQuestion = getQuestion(question.id)!;
+
       const answer2 = postAnswer(
-        question,
+        currentQuestion,
         {
           text: 'Solution 2',
           author: 'bob',
@@ -248,6 +260,9 @@ describe('Verification API', () => {
         },
         agentMetadata
       );
+
+      // Reload question after answer posted
+      question = getQuestion(question.id)!;
     });
 
     it('adds verified signal to answer', () => {
@@ -263,8 +278,11 @@ describe('Verification API', () => {
       expect((signal as any).evidence).toBe('Confirmed in production');
       expect(signal.createdAt).toBeGreaterThan(0);
 
-      expect(answer.signals).toContain(signal);
-      expect(answer.signals.length).toBe(1);
+      // Reload to verify changes were saved
+      const savedQuestion = getQuestion(question.id)!;
+      const savedAnswer = savedQuestion.answers.find((a) => a.id === answer.id)!;
+      expect(savedAnswer.signals).toContainEqual(signal);
+      expect(savedAnswer.signals.length).toBe(1);
     });
 
     it('marks question as verified when answer is verified', () => {
@@ -274,7 +292,9 @@ describe('Verification API', () => {
         sessionId: 'verify-session-1',
       });
 
-      expect(question.status).toBe('verified');
+      // Reload to verify changes were saved
+      const savedQuestion = getQuestion(question.id)!;
+      expect(savedQuestion.status).toBe('verified');
     });
 
     it('requires evidence when verifying', () => {
@@ -286,8 +306,11 @@ describe('Verification API', () => {
 
       expect(signal1.evidence).toBe('Tested on main: npm test passed, 42 test cases passing');
 
+      // Reload question after first verify
+      let currentQuestion = getQuestion(question.id)!;
+
       const answer2 = postAnswer(
-        question,
+        currentQuestion,
         {
           text: 'Another solution',
           author: 'charlie',
@@ -296,7 +319,10 @@ describe('Verification API', () => {
         agentMetadata
       );
 
-      const signal2 = verifyAnswer(question, {
+      // Reload question after second answer
+      currentQuestion = getQuestion(question.id)!;
+
+      const signal2 = verifyAnswer(currentQuestion, {
         answerId: answer2.id,
         sessionId: 'verify-session-2',
         evidence: 'Works in all test cases including edge cases',
@@ -332,14 +358,20 @@ describe('Verification API', () => {
         sessionId: 'verify-session-1',
       });
 
-      verifyAnswer(question, {
+      // Reload question after first verification
+      let currentQuestion = getQuestion(question.id)!;
+
+      verifyAnswer(currentQuestion, {
         answerId: answer.id,
         sessionId: 'verify-session-2',
         evidence: 'Confirmed again',
       });
 
-      expect(answer.signals.length).toBe(2);
-      expect(answer.signals.every((s) => s.type === 'verified')).toBe(true);
+      // Reload to verify changes were saved
+      currentQuestion = getQuestion(question.id)!;
+      const savedAnswer = currentQuestion.answers.find((a) => a.id === answer.id)!;
+      expect(savedAnswer.signals.length).toBe(2);
+      expect(savedAnswer.signals.every((s) => s.type === 'verified')).toBe(true);
     });
   });
 
@@ -369,6 +401,9 @@ describe('Verification API', () => {
         },
         agentMetadata
       );
+
+      // Reload question after answer posted
+      question = getQuestion(question.id)!;
     });
 
     it('adds rejected signal with reason', () => {
@@ -384,8 +419,11 @@ describe('Verification API', () => {
       expect((signal as any).reason).toBe('Does not work in edge cases');
       expect(signal.createdAt).toBeGreaterThan(0);
 
-      expect(answer.signals).toContain(signal);
-      expect(answer.signals.length).toBe(1);
+      // Reload to verify changes were saved
+      const savedQuestion = getQuestion(question.id)!;
+      const savedAnswer = savedQuestion.answers.find((a) => a.id === answer.id)!;
+      expect(savedAnswer.signals).toContainEqual(signal);
+      expect(savedAnswer.signals.length).toBe(1);
     });
 
     it('marks question as candidate when answer is rejected', () => {
@@ -395,7 +433,9 @@ describe('Verification API', () => {
         reason: 'Not applicable',
       });
 
-      expect(question.status).toBe('candidate');
+      // Reload to verify changes were saved
+      const savedQuestion = getQuestion(question.id)!;
+      expect(savedQuestion.status).toBe('candidate');
     });
 
     it('throws error when answer not found', () => {
@@ -415,14 +455,20 @@ describe('Verification API', () => {
         reason: 'Reason 1',
       });
 
-      rejectAnswer(question, {
+      // Reload question after first rejection
+      let currentQuestion = getQuestion(question.id)!;
+
+      rejectAnswer(currentQuestion, {
         answerId: answer.id,
         sessionId: 'reject-session-2',
         reason: 'Reason 2',
       });
 
-      expect(answer.signals.length).toBe(2);
-      expect(answer.signals.every((s) => s.type === 'rejected')).toBe(true);
+      // Reload to verify changes were saved
+      currentQuestion = getQuestion(question.id)!;
+      const savedAnswer = currentQuestion.answers.find((a) => a.id === answer.id)!;
+      expect(savedAnswer.signals.length).toBe(2);
+      expect(savedAnswer.signals.every((s) => s.type === 'rejected')).toBe(true);
     });
   });
 
@@ -454,8 +500,11 @@ describe('Verification API', () => {
         agentMetadata
       );
 
+      // Reload question after first answer
+      let currentQuestion = getQuestion(question.id)!;
+
       const answer2 = postAnswer(
-        question,
+        currentQuestion,
         {
           text: 'Solution B',
           author: 'charlie',
@@ -464,23 +513,30 @@ describe('Verification API', () => {
         agentMetadata
       );
 
+      // Reload question after second answer
+      currentQuestion = getQuestion(question.id)!;
+
       // Verify first answer
-      verifyAnswer(question, {
+      verifyAnswer(currentQuestion, {
         answerId: answer1.id,
         sessionId: 'verify-session-1',
         evidence: 'Works',
       });
 
-      expect(question.status).toBe('verified');
+      // Reload to check status
+      currentQuestion = getQuestion(question.id)!;
+      expect(currentQuestion.status).toBe('verified');
 
       // Reject second answer
-      rejectAnswer(question, {
+      rejectAnswer(currentQuestion, {
         answerId: answer2.id,
         sessionId: 'reject-session-1',
         reason: 'Does not work',
       });
 
-      expect(question.status).toBe('contested');
+      // Reload to check final status
+      currentQuestion = getQuestion(question.id)!;
+      expect(currentQuestion.status).toBe('contested');
     });
 
     it('marks question as contested regardless of order', () => {
@@ -494,8 +550,11 @@ describe('Verification API', () => {
         agentMetadata
       );
 
+      // Reload question after first answer
+      let currentQuestion = getQuestion(question.id)!;
+
       const answer2 = postAnswer(
-        question,
+        currentQuestion,
         {
           text: 'Solution B',
           author: 'charlie',
@@ -504,23 +563,30 @@ describe('Verification API', () => {
         agentMetadata
       );
 
+      // Reload question after second answer
+      currentQuestion = getQuestion(question.id)!;
+
       // Reject first answer
-      rejectAnswer(question, {
+      rejectAnswer(currentQuestion, {
         answerId: answer1.id,
         sessionId: 'reject-session-1',
         reason: 'Does not work',
       });
 
-      expect(question.status).toBe('candidate');
+      // Reload to check status
+      currentQuestion = getQuestion(question.id)!;
+      expect(currentQuestion.status).toBe('candidate');
 
       // Verify second answer
-      verifyAnswer(question, {
+      verifyAnswer(currentQuestion, {
         answerId: answer2.id,
         sessionId: 'verify-session-1',
         evidence: 'Works',
       });
 
-      expect(question.status).toBe('contested');
+      // Reload to check final status
+      currentQuestion = getQuestion(question.id)!;
+      expect(currentQuestion.status).toBe('contested');
     });
 
     it('stays contested with multiple verifications and rejections', () => {
@@ -534,8 +600,11 @@ describe('Verification API', () => {
         agentMetadata
       );
 
+      // Reload question after first answer
+      let currentQuestion = getQuestion(question.id)!;
+
       const answer2 = postAnswer(
-        question,
+        currentQuestion,
         {
           text: 'Solution B',
           author: 'charlie',
@@ -544,31 +613,45 @@ describe('Verification API', () => {
         agentMetadata
       );
 
-      verifyAnswer(question, {
+      // Reload question after second answer
+      currentQuestion = getQuestion(question.id)!;
+
+      verifyAnswer(currentQuestion, {
         evidence: 'Tested and verified',
         answerId: answer1.id,
         sessionId: 'verify-session-1',
       });
 
-      rejectAnswer(question, {
+      // Reload after first verify
+      currentQuestion = getQuestion(question.id)!;
+
+      rejectAnswer(currentQuestion, {
         answerId: answer2.id,
         sessionId: 'reject-session-1',
         reason: 'Fails',
       });
 
-      verifyAnswer(question, {
+      // Reload after first reject
+      currentQuestion = getQuestion(question.id)!;
+
+      verifyAnswer(currentQuestion, {
         evidence: 'Tested and verified',
         answerId: answer1.id,
         sessionId: 'verify-session-2',
       });
 
-      rejectAnswer(question, {
+      // Reload after second verify
+      currentQuestion = getQuestion(question.id)!;
+
+      rejectAnswer(currentQuestion, {
         answerId: answer2.id,
         sessionId: 'reject-session-2',
         reason: 'Still fails',
       });
 
-      expect(question.status).toBe('contested');
+      // Reload to verify final status
+      currentQuestion = getQuestion(question.id)!;
+      expect(currentQuestion.status).toBe('contested');
     });
   });
 
@@ -600,8 +683,11 @@ describe('Verification API', () => {
         agentMetadata
       );
 
+      // Reload question after first answer
+      let currentQuestion = getQuestion(question.id)!;
+
       const answer2 = postAnswer(
-        question,
+        currentQuestion,
         {
           text: 'Solution 2',
           author: 'charlie',
@@ -610,14 +696,19 @@ describe('Verification API', () => {
         agentMetadata
       );
 
-      verifyAnswer(question, {
+      // Reload question after second answer
+      currentQuestion = getQuestion(question.id)!;
+
+      verifyAnswer(currentQuestion, {
         evidence: 'Tested and verified',
         answerId: answer1.id,
         sessionId: 'verify-session-1',
       });
 
-      const verified = getVerifiedAnswer(question);
-      expect(verified).toBe(answer1);
+      // Reload to verify changes were saved
+      currentQuestion = getQuestion(question.id)!;
+      const verified = getVerifiedAnswer(currentQuestion);
+      expect(verified?.id).toBe(answer1.id);
     });
 
     it('returns null when no verified answers', () => {
@@ -651,8 +742,11 @@ describe('Verification API', () => {
         agentMetadata
       );
 
+      // Reload question after first answer
+      let currentQuestion = getQuestion(question.id)!;
+
       const answer2 = postAnswer(
-        question,
+        currentQuestion,
         {
           text: 'Solution 2',
           author: 'charlie',
@@ -661,20 +755,28 @@ describe('Verification API', () => {
         agentMetadata
       );
 
-      verifyAnswer(question, {
+      // Reload question after second answer
+      currentQuestion = getQuestion(question.id)!;
+
+      verifyAnswer(currentQuestion, {
         evidence: 'Tested and verified',
         answerId: answer1.id,
         sessionId: 'verify-session-1',
       });
 
-      verifyAnswer(question, {
+      // Reload after first verify
+      currentQuestion = getQuestion(question.id)!;
+
+      verifyAnswer(currentQuestion, {
         evidence: 'Tested and verified',
         answerId: answer2.id,
         sessionId: 'verify-session-2',
       });
 
-      const verified = getVerifiedAnswer(question);
-      expect(verified).toBe(answer1);
+      // Reload to verify changes were saved
+      currentQuestion = getQuestion(question.id)!;
+      const verified = getVerifiedAnswer(currentQuestion);
+      expect(verified?.id).toBe(answer1.id);
     });
 
     it('returns verified answer even with rejected ones present', () => {
@@ -688,8 +790,11 @@ describe('Verification API', () => {
         agentMetadata
       );
 
+      // Reload question after first answer
+      let currentQuestion = getQuestion(question.id)!;
+
       const answer2 = postAnswer(
-        question,
+        currentQuestion,
         {
           text: 'Solution 2',
           author: 'charlie',
@@ -698,20 +803,28 @@ describe('Verification API', () => {
         agentMetadata
       );
 
-      rejectAnswer(question, {
+      // Reload question after second answer
+      currentQuestion = getQuestion(question.id)!;
+
+      rejectAnswer(currentQuestion, {
         answerId: answer1.id,
         sessionId: 'reject-session-1',
         reason: 'Bad',
       });
 
-      verifyAnswer(question, {
+      // Reload after reject
+      currentQuestion = getQuestion(question.id)!;
+
+      verifyAnswer(currentQuestion, {
         evidence: 'Tested and verified',
         answerId: answer2.id,
         sessionId: 'verify-session-1',
       });
 
-      const verified = getVerifiedAnswer(question);
-      expect(verified).toBe(answer2);
+      // Reload to verify changes were saved
+      currentQuestion = getQuestion(question.id)!;
+      const verified = getVerifiedAnswer(currentQuestion);
+      expect(verified?.id).toBe(answer2.id);
     });
 
     it('ranks answer with 2 verifications higher than answer with 1 verification', () => {
@@ -725,8 +838,11 @@ describe('Verification API', () => {
         agentMetadata
       );
 
+      // Reload question after first answer
+      let currentQuestion = getQuestion(question.id)!;
+
       const answer2 = postAnswer(
-        question,
+        currentQuestion,
         {
           text: 'Solution 2',
           author: 'charlie',
@@ -735,28 +851,39 @@ describe('Verification API', () => {
         agentMetadata
       );
 
+      // Reload question after second answer
+      currentQuestion = getQuestion(question.id)!;
+
       // Answer 1: 1 verification
-      verifyAnswer(question, {
+      verifyAnswer(currentQuestion, {
         evidence: 'Tested and verified',
         answerId: answer1.id,
         sessionId: 'verify-session-1',
       });
 
+      // Reload after first verify
+      currentQuestion = getQuestion(question.id)!;
+
       // Answer 2: 2 verifications
-      verifyAnswer(question, {
+      verifyAnswer(currentQuestion, {
         evidence: 'Tested and verified',
         answerId: answer2.id,
         sessionId: 'verify-session-2',
       });
 
-      verifyAnswer(question, {
+      // Reload after second verify
+      currentQuestion = getQuestion(question.id)!;
+
+      verifyAnswer(currentQuestion, {
         evidence: 'Confirmed again',
         answerId: answer2.id,
         sessionId: 'verify-session-3',
       });
 
-      const verified = getVerifiedAnswer(question);
-      expect(verified).toBe(answer2);
+      // Reload to verify changes were saved
+      currentQuestion = getQuestion(question.id)!;
+      const verified = getVerifiedAnswer(currentQuestion);
+      expect(verified?.id).toBe(answer2.id);
     });
 
     it('ranks answer with 2 verifications + 1 rejection higher than answer with 1 verification', () => {
@@ -770,8 +897,11 @@ describe('Verification API', () => {
         agentMetadata
       );
 
+      // Reload question after first answer
+      let currentQuestion = getQuestion(question.id)!;
+
       const answer2 = postAnswer(
-        question,
+        currentQuestion,
         {
           text: 'Solution 2',
           author: 'charlie',
@@ -780,34 +910,48 @@ describe('Verification API', () => {
         agentMetadata
       );
 
+      // Reload question after second answer
+      currentQuestion = getQuestion(question.id)!;
+
       // Answer 1: 1 verification
-      verifyAnswer(question, {
+      verifyAnswer(currentQuestion, {
         evidence: 'Tested and verified',
         answerId: answer1.id,
         sessionId: 'verify-session-1',
       });
 
+      // Reload after first verify
+      currentQuestion = getQuestion(question.id)!;
+
       // Answer 2: 2 verifications + 1 rejection
-      verifyAnswer(question, {
+      verifyAnswer(currentQuestion, {
         evidence: 'Tested and verified',
         answerId: answer2.id,
         sessionId: 'verify-session-2',
       });
 
-      verifyAnswer(question, {
+      // Reload after second verify
+      currentQuestion = getQuestion(question.id)!;
+
+      verifyAnswer(currentQuestion, {
         evidence: 'Confirmed again',
         answerId: answer2.id,
         sessionId: 'verify-session-3',
       });
 
-      rejectAnswer(question, {
+      // Reload after third verify
+      currentQuestion = getQuestion(question.id)!;
+
+      rejectAnswer(currentQuestion, {
         answerId: answer2.id,
         sessionId: 'reject-session-1',
         reason: 'Does not work in some cases',
       });
 
-      const verified = getVerifiedAnswer(question);
-      expect(verified).toBe(answer2);
+      // Reload to verify changes were saved
+      currentQuestion = getQuestion(question.id)!;
+      const verified = getVerifiedAnswer(currentQuestion);
+      expect(verified?.id).toBe(answer2.id);
     });
 
     it('ranks old answer with 2 verifications higher than brand new answer with 0 verifications', () => {
@@ -822,21 +966,30 @@ describe('Verification API', () => {
         agentMetadata
       );
 
-      verifyAnswer(question, {
+      // Reload question after first answer
+      let currentQuestion = getQuestion(question.id)!;
+
+      verifyAnswer(currentQuestion, {
         evidence: 'Tested and verified',
         answerId: oldAnswer.id,
         sessionId: 'verify-session-1',
       });
 
-      verifyAnswer(question, {
+      // Reload after first verify
+      currentQuestion = getQuestion(question.id)!;
+
+      verifyAnswer(currentQuestion, {
         evidence: 'Confirmed again',
         answerId: oldAnswer.id,
         sessionId: 'verify-session-2',
       });
 
+      // Reload after second verify
+      currentQuestion = getQuestion(question.id)!;
+
       // Immediately create a new answer (very recent, no verifications)
       const newAnswer = postAnswer(
-        question,
+        currentQuestion,
         {
           text: 'Brand new unverified solution',
           author: 'charlie',
@@ -845,10 +998,13 @@ describe('Verification API', () => {
         agentMetadata
       );
 
+      // Reload to verify changes were saved
+      currentQuestion = getQuestion(question.id)!;
+
       // The old answer should be selected because verification count dominates over recency
-      const verified = getVerifiedAnswer(question);
-      expect(verified).toBe(oldAnswer);
-      expect(verified).not.toBe(newAnswer);
+      const verified = getVerifiedAnswer(currentQuestion);
+      expect(verified?.id).toBe(oldAnswer.id);
+      expect(verified?.id).not.toBe(newAnswer.id);
     });
   });
 
@@ -886,9 +1042,11 @@ describe('Verification API', () => {
       expect(comment.createdAt).toBeGreaterThan(0);
       expect(comment.agentMetadata).toEqual(agentMetadata);
 
-      expect(question.comments).toContain(comment);
-      expect(question.answers.length).toBe(0);
-      expect(question.comments.length).toBe(1);
+      // Reload to verify changes were saved
+      const savedQuestion = getQuestion(question.id)!;
+      expect(savedQuestion.comments).toContainEqual(comment);
+      expect(savedQuestion.answers.length).toBe(0);
+      expect(savedQuestion.comments.length).toBe(1);
     });
 
     it('adds multiple comments', () => {
@@ -900,17 +1058,22 @@ describe('Verification API', () => {
         agentMetadata
       );
 
+      // Reload question after first comment
+      let currentQuestion = getQuestion(question.id)!;
+
       const comment2 = postComment(
-        question,
+        currentQuestion,
         'Second comment',
         'charlie',
         'session-3',
         agentMetadata
       );
 
-      expect(question.comments.length).toBe(2);
-      expect(question.comments).toContain(comment1);
-      expect(question.comments).toContain(comment2);
+      // Reload to verify changes were saved
+      currentQuestion = getQuestion(question.id)!;
+      expect(currentQuestion.comments.length).toBe(2);
+      expect(currentQuestion.comments).toContainEqual(comment1);
+      expect(currentQuestion.comments).toContainEqual(comment2);
     });
 
     it('keeps comments separate from answers', () => {
@@ -924,20 +1087,25 @@ describe('Verification API', () => {
         agentMetadata
       );
 
+      // Reload question after answer
+      let currentQuestion = getQuestion(question.id)!;
+
       const comment = postComment(
-        question,
+        currentQuestion,
         'Additional context',
         'charlie',
         'session-3',
         agentMetadata
       );
 
-      expect(question.answers.length).toBe(1);
-      expect(question.comments.length).toBe(1);
-      expect(question.answers).toContain(answer);
-      expect(question.comments).toContain(comment);
-      expect(question.answers).not.toContain(comment);
-      expect(question.comments).not.toContain(answer);
+      // Reload to verify changes were saved
+      currentQuestion = getQuestion(question.id)!;
+      expect(currentQuestion.answers.length).toBe(1);
+      expect(currentQuestion.comments.length).toBe(1);
+      expect(currentQuestion.answers).toContainEqual(answer);
+      expect(currentQuestion.comments).toContainEqual(comment);
+      expect(currentQuestion.answers).not.toContainEqual(comment);
+      expect(currentQuestion.comments).not.toContainEqual(answer);
     });
 
     it('generates unique comment IDs', () => {
@@ -949,8 +1117,11 @@ describe('Verification API', () => {
         agentMetadata
       );
 
+      // Reload question after first comment
+      let currentQuestion = getQuestion(question.id)!;
+
       const comment2 = postComment(
-        question,
+        currentQuestion,
         'Comment 2',
         'bob',
         'session-2',
@@ -993,7 +1164,9 @@ describe('Verification API', () => {
         agentMetadata
       );
 
-      expect(computeQuestionStatus(question)).toBe('candidate');
+      // Reload to verify changes were saved
+      const savedQuestion = getQuestion(question.id)!;
+      expect(computeQuestionStatus(savedQuestion)).toBe('candidate');
     });
 
     it('returns verified when has verified answer', () => {
@@ -1007,13 +1180,18 @@ describe('Verification API', () => {
         agentMetadata
       );
 
-      verifyAnswer(question, {
+      // Reload question after answer
+      let currentQuestion = getQuestion(question.id)!;
+
+      verifyAnswer(currentQuestion, {
         evidence: 'Tested and verified',
         answerId: answer.id,
         sessionId: 'verify-session-1',
       });
 
-      expect(computeQuestionStatus(question)).toBe('verified');
+      // Reload to verify changes were saved
+      currentQuestion = getQuestion(question.id)!;
+      expect(computeQuestionStatus(currentQuestion)).toBe('verified');
     });
 
     it('returns candidate when has only rejected answers', () => {
@@ -1027,13 +1205,18 @@ describe('Verification API', () => {
         agentMetadata
       );
 
-      rejectAnswer(question, {
+      // Reload question after answer
+      let currentQuestion = getQuestion(question.id)!;
+
+      rejectAnswer(currentQuestion, {
         answerId: answer.id,
         sessionId: 'reject-session-1',
         reason: 'Bad',
       });
 
-      expect(computeQuestionStatus(question)).toBe('candidate');
+      // Reload to verify changes were saved
+      currentQuestion = getQuestion(question.id)!;
+      expect(computeQuestionStatus(currentQuestion)).toBe('candidate');
     });
 
     it('returns contested when has both verified and rejected', () => {
@@ -1047,8 +1230,11 @@ describe('Verification API', () => {
         agentMetadata
       );
 
+      // Reload question after first answer
+      let currentQuestion = getQuestion(question.id)!;
+
       const answer2 = postAnswer(
-        question,
+        currentQuestion,
         {
           text: 'Solution 2',
           author: 'charlie',
@@ -1057,19 +1243,27 @@ describe('Verification API', () => {
         agentMetadata
       );
 
-      verifyAnswer(question, {
+      // Reload question after second answer
+      currentQuestion = getQuestion(question.id)!;
+
+      verifyAnswer(currentQuestion, {
         evidence: 'Tested and verified',
         answerId: answer1.id,
         sessionId: 'verify-session-1',
       });
 
-      rejectAnswer(question, {
+      // Reload after verify
+      currentQuestion = getQuestion(question.id)!;
+
+      rejectAnswer(currentQuestion, {
         answerId: answer2.id,
         sessionId: 'reject-session-1',
         reason: 'Bad',
       });
 
-      expect(computeQuestionStatus(question)).toBe('contested');
+      // Reload to verify changes were saved
+      currentQuestion = getQuestion(question.id)!;
+      expect(computeQuestionStatus(currentQuestion)).toBe('contested');
     });
   });
 
@@ -1157,31 +1351,37 @@ describe('Verification API', () => {
         agentMetadata
       );
 
-      expect(question.status).toBe('candidate');
+      // Reload question after answer
+      let currentQuestion = getQuestion(question.id)!;
+      expect(currentQuestion.status).toBe('candidate');
 
       // Add comment
       const comment = postComment(
-        question,
+        currentQuestion,
         'This is a common performance issue in React',
         'charlie',
         'session-3',
         agentMetadata
       );
 
-      expect(question.comments.length).toBe(1);
+      // Reload question after comment
+      currentQuestion = getQuestion(question.id)!;
+      expect(currentQuestion.comments.length).toBe(1);
 
       // Verify answer
-      verifyAnswer(question, {
+      verifyAnswer(currentQuestion, {
         answerId: answer.id,
         sessionId: 'verify-session-1',
         evidence: 'Applied the fix and saw 50% reduction in re-renders',
       });
 
-      expect(question.status).toBe('verified');
+      // Reload to verify changes were saved
+      currentQuestion = getQuestion(question.id)!;
+      expect(currentQuestion.status).toBe('verified');
 
       // Retrieve verified answer
-      const verified = getVerifiedAnswer(question);
-      expect(verified).toBe(answer);
+      const verified = getVerifiedAnswer(currentQuestion);
+      expect(verified?.id).toBe(answer.id);
       expect(verified?.text).toContain('React.memo()');
     });
 
@@ -1208,8 +1408,11 @@ describe('Verification API', () => {
         agentMetadata
       );
 
+      // Reload question after first answer
+      let currentQuestion = getQuestion(question.id)!;
+
       const answer2 = postAnswer(
-        question,
+        currentQuestion,
         {
           text: 'Use React Context API',
           author: 'charlie',
@@ -1218,33 +1421,42 @@ describe('Verification API', () => {
         agentMetadata
       );
 
+      // Reload question after second answer
+      currentQuestion = getQuestion(question.id)!;
+
       // Both get verified by different people
-      verifyAnswer(question, {
+      verifyAnswer(currentQuestion, {
         answerId: answer1.id,
         sessionId: 'verify-session-1',
         evidence: 'Works well for large apps',
       });
 
-      expect(question.status).toBe('verified');
+      // Reload after first verify
+      currentQuestion = getQuestion(question.id)!;
+      expect(currentQuestion.status).toBe('verified');
 
-      verifyAnswer(question, {
+      verifyAnswer(currentQuestion, {
         answerId: answer2.id,
         sessionId: 'verify-session-2',
         evidence: 'Works well for small to medium apps',
       });
 
+      // Reload after second verify
+      currentQuestion = getQuestion(question.id)!;
       // Still verified (multiple verified answers)
-      expect(question.status).toBe('verified');
+      expect(currentQuestion.status).toBe('verified');
 
       // But then one gets rejected
-      rejectAnswer(question, {
+      rejectAnswer(currentQuestion, {
         answerId: answer1.id,
         sessionId: 'reject-session-1',
         reason: 'Overkill for this project',
       });
 
+      // Reload to check final status
+      currentQuestion = getQuestion(question.id)!;
       // Now contested
-      expect(question.status).toBe('contested');
+      expect(currentQuestion.status).toBe('contested');
     });
 
     it('handles status transitions correctly', () => {
@@ -1272,19 +1484,23 @@ describe('Verification API', () => {
         agentMetadata
       );
 
-      expect(question.status).toBe('candidate');
+      // Reload question after answer
+      let currentQuestion = getQuestion(question.id)!;
+      expect(currentQuestion.status).toBe('candidate');
 
-      verifyAnswer(question, {
+      verifyAnswer(currentQuestion, {
         evidence: 'Tested and verified',
         answerId: answer.id,
         sessionId: 'verify-session-1',
       });
 
-      expect(question.status).toBe('verified');
+      // Reload after verify
+      currentQuestion = getQuestion(question.id)!;
+      expect(currentQuestion.status).toBe('verified');
 
       // Add another answer and reject it
       const answer2 = postAnswer(
-        question,
+        currentQuestion,
         {
           text: 'Alternative answer',
           author: 'charlie',
@@ -1293,15 +1509,19 @@ describe('Verification API', () => {
         agentMetadata
       );
 
-      expect(question.status).toBe('verified');
+      // Reload after second answer
+      currentQuestion = getQuestion(question.id)!;
+      expect(currentQuestion.status).toBe('verified');
 
-      rejectAnswer(question, {
+      rejectAnswer(currentQuestion, {
         answerId: answer2.id,
         sessionId: 'reject-session-1',
         reason: 'Not applicable',
       });
 
-      expect(question.status).toBe('contested');
+      // Reload to check final status
+      currentQuestion = getQuestion(question.id)!;
+      expect(currentQuestion.status).toBe('contested');
     });
   });
 

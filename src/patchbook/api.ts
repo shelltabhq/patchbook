@@ -128,8 +128,19 @@ export function postAnswer(
     throw new Error('Answer text is required');
   }
 
-  // Capture original version BEFORE mutations
-  const originalVersion = question.version;
+  // 1. Load fresh copy to verify version (immutable pattern)
+  const fresh = loadQuestion(question.id);
+  if (!fresh) {
+    throw new Error(`Question ${question.id} not found`);
+  }
+  if (fresh.version !== question.version) {
+    throw new Error(
+      `Version mismatch for question ${question.id}: expected ${question.version}, but found ${fresh.version}. Your changes conflict with another update.`
+    );
+  }
+
+  // 2. Create new question object (don't mutate caller's)
+  const updated = structuredClone(fresh);
 
   const answer: Answer = {
     id: generateId('a'),
@@ -141,12 +152,14 @@ export function postAnswer(
     signals: [],
   };
 
-  question.answers.push(answer);
-  question.status = computeQuestionStatus(question);
-  question.version++;
-  question.updatedAt = Math.floor(Date.now() / 1000);
+  // 3. Mutate the CLONE, not the original
+  updated.answers.push(answer);
+  updated.status = computeQuestionStatus(updated);
+  updated.version++;
+  updated.updatedAt = Math.floor(Date.now() / 1000);
 
-  checkVersionAndSave(question, originalVersion);
+  // 4. Save the clone with version check
+  checkVersionAndSave(updated, fresh.version);
 
   trackEvent(
     'answer_posted',
@@ -162,6 +175,7 @@ export function postAnswer(
     }
   );
 
+  // 5. Return only the newly created/modified object, NOT the question
   return answer;
 }
 
@@ -175,17 +189,33 @@ export function verifyAnswer(
   question: Question,
   input: VerifyAnswerInput
 ): Extract<AnswerSignal, { type: 'verified' }> {
-  const answer = question.answers.find((a) => a.id === input.answerId);
-  if (!answer) {
-    throw new Error(`Answer ${input.answerId} not found`);
-  }
-
   if (!input.evidence?.trim()) {
     throw new Error('Verification evidence is required. Describe what you tested and what the results were.');
   }
 
-  // Capture original version BEFORE mutations
-  const originalVersion = question.version;
+  // 1. Load fresh copy to verify version (immutable pattern)
+  const fresh = loadQuestion(question.id);
+  if (!fresh) {
+    throw new Error(`Question ${question.id} not found`);
+  }
+  if (fresh.version !== question.version) {
+    throw new Error(
+      `Version mismatch for question ${question.id}: expected ${question.version}, but found ${fresh.version}. Your changes conflict with another update.`
+    );
+  }
+
+  // Find answer in fresh copy
+  const answer = fresh.answers.find((a) => a.id === input.answerId);
+  if (!answer) {
+    throw new Error(`Answer ${input.answerId} not found`);
+  }
+
+  // 2. Create new question object (don't mutate caller's)
+  const updated = structuredClone(fresh);
+  const updatedAnswer = updated.answers.find((a) => a.id === input.answerId);
+  if (!updatedAnswer) {
+    throw new Error(`Answer ${input.answerId} not found in cloned question`);
+  }
 
   const signal: AnswerSignal = {
     type: 'verified',
@@ -194,12 +224,14 @@ export function verifyAnswer(
     createdAt: Math.floor(Date.now() / 1000),
   };
 
-  answer.signals.push(signal);
-  question.status = computeQuestionStatus(question);
-  question.version++;
-  question.updatedAt = Math.floor(Date.now() / 1000);
+  // 3. Mutate the CLONE, not the original
+  updatedAnswer.signals.push(signal);
+  updated.status = computeQuestionStatus(updated);
+  updated.version++;
+  updated.updatedAt = Math.floor(Date.now() / 1000);
 
-  checkVersionAndSave(question, originalVersion);
+  // 4. Save the clone with version check
+  checkVersionAndSave(updated, fresh.version);
 
   trackEvent(
     'answer_verified',
@@ -216,6 +248,7 @@ export function verifyAnswer(
     }
   );
 
+  // 5. Return only the newly created/modified object, NOT the question
   return signal;
 }
 
@@ -229,17 +262,33 @@ export function rejectAnswer(
   question: Question,
   input: RejectAnswerInput
 ): AnswerSignal {
-  const answer = question.answers.find((a) => a.id === input.answerId);
-  if (!answer) {
-    throw new Error(`Answer ${input.answerId} not found`);
-  }
-
   if (!input.reason?.trim()) {
     throw new Error('Rejection reason is required. Explain why this answer doesn\'t work in your context.');
   }
 
-  // Capture original version BEFORE mutations
-  const originalVersion = question.version;
+  // 1. Load fresh copy to verify version (immutable pattern)
+  const fresh = loadQuestion(question.id);
+  if (!fresh) {
+    throw new Error(`Question ${question.id} not found`);
+  }
+  if (fresh.version !== question.version) {
+    throw new Error(
+      `Version mismatch for question ${question.id}: expected ${question.version}, but found ${fresh.version}. Your changes conflict with another update.`
+    );
+  }
+
+  // Find answer in fresh copy
+  const answer = fresh.answers.find((a) => a.id === input.answerId);
+  if (!answer) {
+    throw new Error(`Answer ${input.answerId} not found`);
+  }
+
+  // 2. Create new question object (don't mutate caller's)
+  const updated = structuredClone(fresh);
+  const updatedAnswer = updated.answers.find((a) => a.id === input.answerId);
+  if (!updatedAnswer) {
+    throw new Error(`Answer ${input.answerId} not found in cloned question`);
+  }
 
   const signal: AnswerSignal = {
     type: 'rejected',
@@ -248,12 +297,14 @@ export function rejectAnswer(
     createdAt: Math.floor(Date.now() / 1000),
   };
 
-  answer.signals.push(signal);
-  question.status = computeQuestionStatus(question);
-  question.version++;
-  question.updatedAt = Math.floor(Date.now() / 1000);
+  // 3. Mutate the CLONE, not the original
+  updatedAnswer.signals.push(signal);
+  updated.status = computeQuestionStatus(updated);
+  updated.version++;
+  updated.updatedAt = Math.floor(Date.now() / 1000);
 
-  checkVersionAndSave(question, originalVersion);
+  // 4. Save the clone with version check
+  checkVersionAndSave(updated, fresh.version);
 
   trackEvent(
     'answer_rejected',
@@ -269,6 +320,7 @@ export function rejectAnswer(
     }
   );
 
+  // 5. Return only the newly created/modified object, NOT the question
   return signal;
 }
 
@@ -453,8 +505,19 @@ export function postComment(
     throw new Error('Comment text is required');
   }
 
-  // Capture original version BEFORE mutations
-  const originalVersion = question.version;
+  // 1. Load fresh copy to verify version (immutable pattern)
+  const fresh = loadQuestion(question.id);
+  if (!fresh) {
+    throw new Error(`Question ${question.id} not found`);
+  }
+  if (fresh.version !== question.version) {
+    throw new Error(
+      `Version mismatch for question ${question.id}: expected ${question.version}, but found ${fresh.version}. Your changes conflict with another update.`
+    );
+  }
+
+  // 2. Create new question object (don't mutate caller's)
+  const updated = structuredClone(fresh);
 
   const comment: Comment = {
     id: generateId('cmt'),
@@ -465,11 +528,13 @@ export function postComment(
     createdAt: Math.floor(Date.now() / 1000),
   };
 
-  question.comments.push(comment);
-  question.version++;
-  question.updatedAt = Math.floor(Date.now() / 1000);
+  // 3. Mutate the CLONE, not the original
+  updated.comments.push(comment);
+  updated.version++;
+  updated.updatedAt = Math.floor(Date.now() / 1000);
 
-  checkVersionAndSave(question, originalVersion);
+  // 4. Save the clone with version check
+  checkVersionAndSave(updated, fresh.version);
 
   trackEvent(
     'comment_posted',
@@ -484,5 +549,6 @@ export function postComment(
     }
   );
 
+  // 5. Return only the newly created/modified object, NOT the question
   return comment;
 }
