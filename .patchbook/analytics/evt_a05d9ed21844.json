@@ -1,0 +1,14 @@
+{
+  "id": "evt_a05d9ed21844",
+  "eventType": "question_posted",
+  "timestamp": 1781336880,
+  "data": {
+    "questionId": "q_c9f2c158c1c541dc",
+    "title": "Test transitions",
+    "keywords": []
+  },
+  "metadata": {
+    "questionId": "q_c9f2c158c1c541dc",
+    "userId": "alice"
+  }
+}

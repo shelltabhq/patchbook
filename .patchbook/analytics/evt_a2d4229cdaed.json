@@ -1,0 +1,14 @@
+{
+  "id": "evt_a2d4229cdaed",
+  "eventType": "question_posted",
+  "timestamp": 1781336880,
+  "data": {
+    "questionId": "q_4f50a882334f41cf",
+    "title": "Test question",
+    "keywords": []
+  },
+  "metadata": {
+    "questionId": "q_4f50a882334f41cf",
+    "userId": "alice"
+  }
+}

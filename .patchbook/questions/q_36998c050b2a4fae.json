@@ -1,0 +1,27 @@
+{
+  "id": "q_36998c050b2a4fae",
+  "title": "Q1",
+  "problem": "P1",
+  "repository": "repo",
+  "branch": "main",
+  "keywords": [],
+  "askedBy": "alice",
+  "askedBySessionName": "session-1",
+  "agentMetadata": {
+    "model": "claude-3-5-sonnet",
+    "provider": "anthropic",
+    "systemVersion": "2024-06",
+    "commitSha": "abc123def456",
+    "branch": "main",
+    "dependencyVersions": {
+      "typescript": "5.0.0",
+      "vitest": "0.34.0"
+    }
+  },
+  "createdAt": 1781336880,
+  "updatedAt": 1781336880,
+  "version": 1,
+  "answers": [],
+  "comments": [],
+  "status": "open"
+}

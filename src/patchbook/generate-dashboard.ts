@@ -2,8 +2,25 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { getAllQuestions } from './api';
 
-function escapeHtml(text: string): string {
-  return text
+// Defensive getters with fallbacks
+function safe<T>(value: T | undefined | null, fallback: T): T {
+  return value === undefined || value === null ? fallback : value;
+}
+
+function safeString(text: unknown, fallback = 'unknown'): string {
+  if (typeof text === 'string') return text.trim() || fallback;
+  if (text === null || text === undefined) return fallback;
+  return String(text).trim() || fallback;
+}
+
+function safeArray<T>(arr: unknown, fallback: T[] = []): T[] {
+  if (Array.isArray(arr)) return arr;
+  return fallback;
+}
+
+function escapeHtml(text: unknown): string {
+  const str = safeString(text, '');
+  return str
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -12,31 +29,60 @@ function escapeHtml(text: string): string {
 }
 
 function renderQuestion(question: any): string {
+  // Defensive extraction with fallbacks
+  const id = escapeHtml(safe(question?.id, 'unknown-q'));
+  const status = safeString(question?.status, 'open');
+  const title = escapeHtml(safe(question?.title, 'Untitled Question'));
+  const problem = escapeHtml(safe(question?.problem, 'No description provided'));
+  const repository = escapeHtml(safe(question?.repository, 'unknown-repo'));
+  const branch = escapeHtml(safe(question?.branch, 'unknown-branch'));
+  const sessionName = escapeHtml(safe(question?.askedBySessionName, 'anonymous'));
+  const answers = safeArray<any>(question?.answers, []);
+  const comments = safeArray<any>(question?.comments, []);
+
+  // Only show status badge if status is one of the known values
+  const validStatuses = ['open', 'candidate', 'verified', 'contested', 'duplicate', 'stale'];
+  const statusClass = validStatuses.includes(status) ? status : 'open';
+
   const questionHTML = `
-    <div class="question" data-id="${escapeHtml(question.id)}" data-status="${escapeHtml(question.status)}">
+    <div class="question" data-id="${id}" data-status="${status}">
       <div class="question-header">
-        <div class="status-badge ${question.status}">${question.status}</div>
-        <h2 class="question-title">${escapeHtml(question.title)}</h2>
+        <div class="status-badge ${statusClass}">${escapeHtml(status)}</div>
+        <h2 class="question-title">${title}</h2>
         <div class="question-meta">
-          Asked in <strong>${escapeHtml(question.repository)}</strong> on <strong>${escapeHtml(question.branch)}</strong>
-          by <strong>${escapeHtml(question.askedBySessionName)}</strong>
+          Asked in <strong>${repository}</strong> on <strong>${branch}</strong>
+          by <strong>${sessionName}</strong>
         </div>
       </div>
 
-      <div class="question-problem">${escapeHtml(question.problem)}</div>
+      <div class="question-problem">${problem}</div>
 
       <div class="answers-section">
-        <h3>Answers (${question.answers.length})</h3>
-        ${question.answers.length > 0
-          ? question.answers.map((answer: any) => renderAnswer(answer)).join('')
+        <h3>Answers (${answers.length})</h3>
+        ${answers.length > 0
+          ? answers.map((answer: any) => {
+              try {
+                return renderAnswer(answer);
+              } catch (e) {
+                console.error('Failed to render answer:', e);
+                return '<div class="error">Failed to render answer</div>';
+              }
+            }).join('')
           : '<p class="no-answers">No answers yet</p>'
         }
       </div>
 
-      ${question.comments.length > 0
+      ${comments.length > 0
         ? `<div class="comments-section">
-            <h3>Discussion (${question.comments.length})</h3>
-            ${question.comments.map((comment: any) => renderComment(comment)).join('')}
+            <h3>Discussion (${comments.length})</h3>
+            ${comments.map((comment: any) => {
+              try {
+                return renderComment(comment);
+              } catch (e) {
+                console.error('Failed to render comment:', e);
+                return '<div class="error">Failed to render comment</div>';
+              }
+            }).join('')}
           </div>`
         : ''
       }
@@ -46,74 +92,133 @@ function renderQuestion(question: any): string {
 }
 
 function renderAnswer(answer: any): string {
-  const hasVerified = answer.signals?.some((s: any) => s.type === 'verified');
-  const hasRejected = answer.signals?.some((s: any) => s.type === 'rejected');
-  const status = answer.supersededBy ? 'superseded' : hasVerified ? 'verified' : hasRejected ? 'rejected' : 'neutral';
+  // Defensive extraction
+  const id = escapeHtml(safe(answer?.id, 'unknown-a'));
+  const text = escapeHtml(safe(answer?.text, '(No answer text)'));
+  const sessionName = escapeHtml(safe(answer?.authorSessionName, 'anonymous'));
+  const model = escapeHtml(safe(answer?.agentMetadata?.model, 'unknown'));
+  const signals = safeArray<any>(answer?.signals, []);
+  const supersededBy = safe(answer?.supersededBy, null);
 
-  const date = new Date(answer.createdAt * 1000);
+  // Determine status
+  const hasVerified = signals.some((s: any) => s?.type === 'verified');
+  const hasRejected = signals.some((s: any) => s?.type === 'rejected');
+  const status = supersededBy ? 'superseded' : hasVerified ? 'verified' : hasRejected ? 'rejected' : 'neutral';
+
+  // Safe date handling
+  const createdAt = typeof answer?.createdAt === 'number' ? answer.createdAt : Math.floor(Date.now() / 1000);
+  const date = new Date(createdAt * 1000);
   const timeAgo = getTimeAgo(date);
 
-  const signalsHTML = answer.signals?.length > 0
-    ? answer.signals.map((signal: any) => `
-        <div class="signal ${signal.type}">
-          <div class="signal-header">
-            <span class="signal-icon">${signal.type === 'verified' ? '✓' : '✗'}</span>
-            <span class="signal-label">${signal.type === 'verified' ? 'Verified' : 'Rejected'} by ${escapeHtml(signal.sessionId)}</span>
-          </div>
-          <div class="signal-detail">${escapeHtml(signal.evidence || signal.reason || '')}</div>
-        </div>
-      `).join('')
+  // Render signals safely
+  const signalsHTML = signals.length > 0
+    ? signals
+        .filter((signal: any) => signal && (signal.type === 'verified' || signal.type === 'rejected'))
+        .map((signal: any) => {
+          const signalType = signal.type === 'verified' ? 'verified' : 'rejected';
+          const signalIcon = signal.type === 'verified' ? '✓' : '✗';
+          const signalLabel = signal.type === 'verified' ? 'Verified' : 'Rejected';
+          const sessionId = escapeHtml(safe(signal?.sessionId, 'unknown-session'));
+          const evidence = escapeHtml(safe(signal?.evidence || signal?.reason, '(no evidence)'));
+
+          return `
+            <div class="signal ${signalType}">
+              <div class="signal-header">
+                <span class="signal-icon">${signalIcon}</span>
+                <span class="signal-label">${signalLabel} by ${sessionId}</span>
+              </div>
+              <div class="signal-detail">${evidence}</div>
+            </div>
+          `;
+        })
+        .join('')
     : '';
 
   return `
     <div class="answer-card ${status}">
       <div class="answer-header">
         <div class="answer-author">
-          <div class="answer-author-name">${escapeHtml(answer.authorSessionName)}</div>
-          <div class="answer-author-meta">${timeAgo} • ${escapeHtml(answer.agentMetadata?.model || 'unknown')}</div>
+          <div class="answer-author-name">${sessionName}</div>
+          <div class="answer-author-meta">${timeAgo} • ${model}</div>
         </div>
         <div class="answer-status ${status}">${status}</div>
       </div>
-      <div class="answer-text">${escapeHtml(answer.text)}</div>
+      <div class="answer-text">${text}</div>
       ${signalsHTML ? `<div class="answer-signals">${signalsHTML}</div>` : ''}
     </div>
   `;
 }
 
 function renderComment(comment: any): string {
-  const date = new Date(comment.createdAt * 1000);
+  // Defensive extraction
+  const id = escapeHtml(safe(comment?.id, 'unknown-c'));
+  const text = escapeHtml(safe(comment?.text, '(No comment text)'));
+  const sessionName = escapeHtml(safe(comment?.authorSessionName, 'anonymous'));
+  const model = escapeHtml(safe(comment?.agentMetadata?.model, 'unknown'));
+
+  // Safe date handling
+  const createdAt = typeof comment?.createdAt === 'number' ? comment.createdAt : Math.floor(Date.now() / 1000);
+  const date = new Date(createdAt * 1000);
   const timeAgo = getTimeAgo(date);
 
   return `
-    <div class="comment">
+    <div class="comment" data-id="${id}">
       <div class="comment-header">
         <div class="comment-author">
-          <strong>${escapeHtml(comment.authorSessionName)}</strong>
+          <strong>${sessionName}</strong>
           <span class="comment-time">${timeAgo}</span>
         </div>
-        <div class="comment-model">${escapeHtml(comment.agentMetadata?.model || 'unknown')}</div>
+        <div class="comment-model">${model}</div>
       </div>
-      <div class="comment-text">${escapeHtml(comment.text)}</div>
+      <div class="comment-text">${text}</div>
     </div>
   `;
 }
 
 function getTimeAgo(date: Date): string {
-  const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+  try {
+    const now = new Date();
+    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-  if (seconds < 60) return 'just now';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
-  return date.toLocaleDateString();
+    if (seconds < 0) return 'in the future';
+    if (seconds < 60) return 'just now';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+    return date.toLocaleDateString();
+  } catch (e) {
+    return 'unknown time';
+  }
 }
 
 export function generateDashboardHTML(): string {
-  const questions = getAllQuestions();
+  let questions: any[] = [];
+  let questionsHTML = '';
 
-  const questionsHTML = questions.length > 0
-    ? questions.map(renderQuestion).join('')
-    : '<div class="no-data"><p>No questions yet. Be the first to post one!</p></div>';
+  try {
+    questions = safeArray<any>(getAllQuestions(), []);
+  } catch (e) {
+    console.error('Failed to load questions:', e);
+    questions = [];
+  }
+
+  if (questions.length > 0) {
+    const renderedQuestions = questions
+      .map((question: any) => {
+        try {
+          return renderQuestion(question);
+        } catch (e) {
+          console.error('Failed to render question:', e);
+          return `<div class="error"><p>Failed to render a question (data may be corrupted). ID: ${escapeHtml(safe(question?.id, 'unknown'))}</p></div>`;
+        }
+      })
+      .filter(Boolean)
+      .join('');
+
+    questionsHTML = renderedQuestions || '<div class="no-data"><p>No valid questions found.</p></div>';
+  } else {
+    questionsHTML = '<div class="no-data"><p>No questions yet. Be the first to post one!</p></div>';
+  }
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -387,6 +492,20 @@ export function generateDashboardHTML(): string {
       padding: 20px;
       color: #999;
       font-size: 12px;
+    }
+
+    .error {
+      background: #ffebee;
+      border: 1px solid #ef5350;
+      border-radius: 4px;
+      padding: 15px;
+      margin-bottom: 15px;
+      color: #c62828;
+      font-size: 13px;
+    }
+
+    .error p {
+      margin: 0;
     }
   </style>
 </head>

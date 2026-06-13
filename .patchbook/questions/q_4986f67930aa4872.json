@@ -1,0 +1,30 @@
+{
+  "id": "q_4986f67930aa4872",
+  "title": "How to debug TypeScript errors?",
+  "problem": "Getting type errors in my component",
+  "repository": "myrepo",
+  "branch": "main",
+  "keywords": [
+    "typescript",
+    "debugging"
+  ],
+  "askedBy": "alice",
+  "askedBySessionName": "session-1",
+  "agentMetadata": {
+    "model": "claude-3-5-sonnet",
+    "provider": "anthropic",
+    "systemVersion": "2024-06",
+    "commitSha": "abc123def456",
+    "branch": "main",
+    "dependencyVersions": {
+      "typescript": "5.0.0",
+      "vitest": "0.34.0"
+    }
+  },
+  "createdAt": 1781336858,
+  "updatedAt": 1781336858,
+  "version": 1,
+  "answers": [],
+  "comments": [],
+  "status": "open"
+}

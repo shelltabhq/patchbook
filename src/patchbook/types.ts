@@ -62,6 +62,8 @@ export interface Question {
   askedBySessionName: string;
   agentMetadata: AgentMetadata;
   createdAt: number;
+  updatedAt: number;
+  version: number;
   answers: Answer[];
   comments: Comment[];
   status: QuestionStatus;

@@ -1,0 +1,17 @@
+{
+  "id": "evt_e74392e5b888",
+  "eventType": "question_posted",
+  "timestamp": 1781336885,
+  "data": {
+    "questionId": "q_3e30802186b34f48",
+    "title": "How to optimize React components?",
+    "keywords": [
+      "react",
+      "performance"
+    ]
+  },
+  "metadata": {
+    "questionId": "q_3e30802186b34f48",
+    "userId": "alice"
+  }
+}

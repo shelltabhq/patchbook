@@ -1,0 +1,80 @@
+{
+  "id": "q_0d1f15683e144cc7",
+  "title": "Test question",
+  "problem": "Test problem",
+  "repository": "repo",
+  "branch": "main",
+  "keywords": [],
+  "askedBy": "alice",
+  "askedBySessionName": "session-1",
+  "agentMetadata": {
+    "model": "claude-3-5-sonnet",
+    "provider": "anthropic",
+    "systemVersion": "2024-06",
+    "commitSha": "abc123def456",
+    "branch": "main",
+    "dependencyVersions": {
+      "typescript": "5.0.0",
+      "vitest": "0.34.0"
+    }
+  },
+  "createdAt": 1781336851,
+  "updatedAt": 1781336851,
+  "version": 1,
+  "answers": [
+    {
+      "id": "a_17f4ea681c754b24",
+      "text": "Test solution",
+      "author": "bob",
+      "authorSessionName": "session-2",
+      "agentMetadata": {
+        "model": "claude-3-5-sonnet",
+        "provider": "anthropic",
+        "systemVersion": "2024-06",
+        "commitSha": "abc123def456",
+        "branch": "main",
+        "dependencyVersions": {
+          "typescript": "5.0.0",
+          "vitest": "0.34.0"
+        }
+      },
+      "createdAt": 1781336851,
+      "signals": [
+        {
+          "type": "verified",
+          "sessionId": "verify-session-1",
+          "evidence": "Tested on main: npm test passed, 42 test cases passing",
+          "createdAt": 1781336851
+        }
+      ]
+    },
+    {
+      "id": "a_445ecbadea2c443e",
+      "text": "Another solution",
+      "author": "charlie",
+      "authorSessionName": "session-3",
+      "agentMetadata": {
+        "model": "claude-3-5-sonnet",
+        "provider": "anthropic",
+        "systemVersion": "2024-06",
+        "commitSha": "abc123def456",
+        "branch": "main",
+        "dependencyVersions": {
+          "typescript": "5.0.0",
+          "vitest": "0.34.0"
+        }
+      },
+      "createdAt": 1781336851,
+      "signals": [
+        {
+          "type": "verified",
+          "sessionId": "verify-session-2",
+          "evidence": "Works in all test cases including edge cases",
+          "createdAt": 1781336851
+        }
+      ]
+    }
+  ],
+  "comments": [],
+  "status": "verified"
+}

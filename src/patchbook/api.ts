@@ -64,6 +64,7 @@ export function postQuestion(
     throw new Error('Question problem description is required');
   }
 
+  const now = Math.floor(Date.now() / 1000);
   const question: Question = {
     id: generateId('q'),
     title: input.title,
@@ -74,7 +75,9 @@ export function postQuestion(
     askedBy: input.author,
     askedBySessionName: input.authorSessionName,
     agentMetadata,
-    createdAt: Math.floor(Date.now() / 1000),
+    createdAt: now,
+    updatedAt: now,
+    version: 1,
     answers: [],
     comments: [],
     status: 'open',
@@ -125,6 +128,8 @@ export function postAnswer(
 
   question.answers.push(answer);
   question.status = computeQuestionStatus(question);
+  question.version++;
+  question.updatedAt = Math.floor(Date.now() / 1000);
 
   saveQuestion(question);
 
@@ -173,6 +178,8 @@ export function verifyAnswer(
 
   answer.signals.push(signal);
   question.status = computeQuestionStatus(question);
+  question.version++;
+  question.updatedAt = Math.floor(Date.now() / 1000);
 
   saveQuestion(question);
 
@@ -222,6 +229,8 @@ export function rejectAnswer(
 
   answer.signals.push(signal);
   question.status = computeQuestionStatus(question);
+  question.version++;
+  question.updatedAt = Math.floor(Date.now() / 1000);
 
   saveQuestion(question);
 
@@ -370,6 +379,8 @@ export function postComment(
   };
 
   question.comments.push(comment);
+  question.version++;
+  question.updatedAt = Math.floor(Date.now() / 1000);
 
   saveQuestion(question);
 

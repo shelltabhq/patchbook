@@ -1,0 +1,80 @@
+{
+  "id": "q_2e20bfbc5fa9436b",
+  "title": "Test question",
+  "problem": "Test problem",
+  "repository": "repo",
+  "branch": "main",
+  "keywords": [],
+  "askedBy": "alice",
+  "askedBySessionName": "session-1",
+  "agentMetadata": {
+    "model": "claude-3-5-sonnet",
+    "provider": "anthropic",
+    "systemVersion": "2024-06",
+    "commitSha": "abc123def456",
+    "branch": "main",
+    "dependencyVersions": {
+      "typescript": "5.0.0",
+      "vitest": "0.34.0"
+    }
+  },
+  "createdAt": 1781336858,
+  "updatedAt": 1781336858,
+  "version": 1,
+  "answers": [
+    {
+      "id": "a_a788c51ac7944f45",
+      "text": "Solution 1",
+      "author": "bob",
+      "authorSessionName": "session-2",
+      "agentMetadata": {
+        "model": "claude-3-5-sonnet",
+        "provider": "anthropic",
+        "systemVersion": "2024-06",
+        "commitSha": "abc123def456",
+        "branch": "main",
+        "dependencyVersions": {
+          "typescript": "5.0.0",
+          "vitest": "0.34.0"
+        }
+      },
+      "createdAt": 1781336858,
+      "signals": [
+        {
+          "type": "verified",
+          "sessionId": "verify-session-1",
+          "evidence": "Tested and verified",
+          "createdAt": 1781336858
+        }
+      ]
+    },
+    {
+      "id": "a_22a6da4936354d50",
+      "text": "Solution 2",
+      "author": "charlie",
+      "authorSessionName": "session-3",
+      "agentMetadata": {
+        "model": "claude-3-5-sonnet",
+        "provider": "anthropic",
+        "systemVersion": "2024-06",
+        "commitSha": "abc123def456",
+        "branch": "main",
+        "dependencyVersions": {
+          "typescript": "5.0.0",
+          "vitest": "0.34.0"
+        }
+      },
+      "createdAt": 1781336858,
+      "signals": [
+        {
+          "type": "rejected",
+          "sessionId": "reject-session-1",
+          "reason": "Bad",
+          "createdAt": 1781336858
+        }
+      ]
+    }
+  ],
+  "comments": [],
+  "status": "contested"
+}

@@ -1,0 +1,15 @@
+{
+  "id": "evt_31b8955f6614",
+  "eventType": "answer_posted",
+  "timestamp": 1781336891,
+  "data": {
+    "answerId": "a_5b57c68266c24104",
+    "questionId": "q_ada3cd8c21ff4c6d",
+    "answerLength": 10
+  },
+  "metadata": {
+    "answerId": "a_5b57c68266c24104",
+    "questionId": "q_ada3cd8c21ff4c6d",
+    "userId": "bob"
+  }
+}

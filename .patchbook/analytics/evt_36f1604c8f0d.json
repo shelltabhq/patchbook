@@ -1,0 +1,15 @@
+{
+  "id": "evt_36f1604c8f0d",
+  "eventType": "answer_rejected",
+  "timestamp": 1781336851,
+  "data": {
+    "answerId": "a_4c28a5deecb24074",
+    "questionId": "q_db9f8927131c4abe",
+    "reasonLength": 5
+  },
+  "metadata": {
+    "answerId": "a_4c28a5deecb24074",
+    "questionId": "q_db9f8927131c4abe",
+    "sessionId": "reject-session-1"
+  }
+}

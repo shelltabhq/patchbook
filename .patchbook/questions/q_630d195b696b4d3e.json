@@ -1,0 +1,80 @@
+{
+  "id": "q_630d195b696b4d3e",
+  "title": "Test transitions",
+  "problem": "Test",
+  "repository": "repo",
+  "branch": "main",
+  "keywords": [],
+  "askedBy": "alice",
+  "askedBySessionName": "session-1",
+  "agentMetadata": {
+    "model": "claude-3-5-sonnet",
+    "provider": "anthropic",
+    "systemVersion": "2024-06",
+    "commitSha": "abc123def456",
+    "branch": "main",
+    "dependencyVersions": {
+      "typescript": "5.0.0",
+      "vitest": "0.34.0"
+    }
+  },
+  "createdAt": 1781336870,
+  "updatedAt": 1781336870,
+  "version": 3,
+  "answers": [
+    {
+      "id": "a_d8b387f2bd004bd6",
+      "text": "Test answer",
+      "author": "bob",
+      "authorSessionName": "session-2",
+      "agentMetadata": {
+        "model": "claude-3-5-sonnet",
+        "provider": "anthropic",
+        "systemVersion": "2024-06",
+        "commitSha": "abc123def456",
+        "branch": "main",
+        "dependencyVersions": {
+          "typescript": "5.0.0",
+          "vitest": "0.34.0"
+        }
+      },
+      "createdAt": 1781336870,
+      "signals": [
+        {
+          "type": "verified",
+          "sessionId": "verify-session-1",
+          "evidence": "Tested and verified",
+          "createdAt": 1781336870
+        }
+      ]
+    },
+    {
+      "id": "a_24d3a69238994ff4",
+      "text": "Alternative answer",
+      "author": "charlie",
+      "authorSessionName": "session-3",
+      "agentMetadata": {
+        "model": "claude-3-5-sonnet",
+        "provider": "anthropic",
+        "systemVersion": "2024-06",
+        "commitSha": "abc123def456",
+        "branch": "main",
+        "dependencyVersions": {
+          "typescript": "5.0.0",
+          "vitest": "0.34.0"
+        }
+      },
+      "createdAt": 1781336870,
+      "signals": [
+        {
+          "type": "rejected",
+          "sessionId": "reject-session-1",
+          "reason": "Not applicable",
+          "createdAt": 1781336870
+        }
+      ]
+    }
+  ],
+  "comments": [],
+  "status": "contested"
+}

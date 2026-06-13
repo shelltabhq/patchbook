@@ -1,0 +1,27 @@
+{
+  "id": "q_c517ed28a6524f1c",
+  "title": "Test question",
+  "problem": "Some problem",
+  "repository": "repo",
+  "branch": "main",
+  "keywords": [],
+  "askedBy": "bob",
+  "askedBySessionName": "session-2",
+  "agentMetadata": {
+    "model": "claude-3-5-sonnet",
+    "provider": "anthropic",
+    "systemVersion": "2024-06",
+    "commitSha": "abc123def456",
+    "branch": "main",
+    "dependencyVersions": {
+      "typescript": "5.0.0",
+      "vitest": "0.34.0"
+    }
+  },
+  "createdAt": 1781336870,
+  "updatedAt": 1781336870,
+  "version": 1,
+  "answers": [],
+  "comments": [],
+  "status": "open"
+}

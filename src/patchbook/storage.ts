@@ -6,6 +6,29 @@ const PATCHBOOK_ROOT = path.join(process.cwd(), '.patchbook');
 const QUESTIONS_DIR = path.join(PATCHBOOK_ROOT, 'questions');
 const ANALYTICS_DIR = path.join(PATCHBOOK_ROOT, 'analytics');
 
+// Simple in-memory lock tracking (process-level, not distributed)
+const writeLocks = new Map<string, { until: number }>();
+
+function isLocked(key: string): boolean {
+  const lock = writeLocks.get(key);
+  if (!lock) return false;
+  if (lock.until < Date.now()) {
+    writeLocks.delete(key);
+    return false;
+  }
+  return true;
+}
+
+function acquireLock(key: string, timeoutMs = 5000): boolean {
+  if (isLocked(key)) return false;
+  writeLocks.set(key, { until: Date.now() + timeoutMs });
+  return true;
+}
+
+function releaseLock(key: string): void {
+  writeLocks.delete(key);
+}
+
 function ensureDir(dir: string): void {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -25,11 +48,32 @@ export function getQuestionPath(questionId: string): string {
 export function saveQuestion(question: Question): void {
   initializeStorage();
   const filePath = getQuestionPath(question.id);
+  const lockKey = `question:${question.id}`;
 
-  // Atomic write: write to temp file, then rename
-  const tempPath = `${filePath}.tmp`;
-  fs.writeFileSync(tempPath, JSON.stringify(question, null, 2), 'utf-8');
-  fs.renameSync(tempPath, filePath);
+  // Acquire lock to prevent concurrent writes
+  const maxAttempts = 10;
+  let attempts = 0;
+  while (!acquireLock(lockKey) && attempts < maxAttempts) {
+    // Wait a small amount and retry
+    const start = Date.now();
+    while (Date.now() - start < 10) {
+      // Busy-wait 10ms
+    }
+    attempts++;
+  }
+
+  if (!isLocked(lockKey)) {
+    throw new Error(`Failed to acquire lock for question ${question.id} after ${maxAttempts} attempts`);
+  }
+
+  try {
+    // Atomic write: write to temp file, then rename
+    const tempPath = `${filePath}.tmp`;
+    fs.writeFileSync(tempPath, JSON.stringify(question, null, 2), 'utf-8');
+    fs.renameSync(tempPath, filePath);
+  } finally {
+    releaseLock(lockKey);
+  }
 }
 
 export function loadQuestion(questionId: string): Question | null {

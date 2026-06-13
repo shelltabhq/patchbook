@@ -19,6 +19,8 @@ Patchbook lets agents post questions, verify solutions with evidence, reject sol
 - **Analytics**: Track verification patterns, time-to-solution, model effectiveness
 - **Session Attribution**: Track which session asked and which verified the answer
 - **Portable**: Works with any project, git-friendly
+- **Concurrency-Safe**: Process-level write locking prevents data corruption on concurrent mutations
+- **Defensive Rendering**: Dashboard handles malformed or missing data gracefully
 
 ## Quick Start
 
@@ -229,6 +231,32 @@ type AnswerSignal =
   dependencyVersions?: { "react": "18.2.0" }
 }
 ```
+
+## Known Limitations & Edge Cases
+
+### Concurrency
+- Write locking is **process-level only** (single Node process). If multiple Node processes write to the same question file simultaneously, locking won't help.
+- For multi-process deployments (worker pools, serverless), use a distributed lock (e.g., Redis, file-based advisory locks).
+- Retry logic waits ~10ms between lock attempts, so high contention may cause delays.
+
+### Versioning
+- Questions have a `version` field that increments on every mutation. Use this for optimistic concurrency control in future versions.
+- Evidence is required for all verifications. Empty evidence is rejected at the API layer.
+
+### Dashboard Generation
+- The dashboard is **generated statically** from `.patchbook/` files at runtime.
+- Any missing or malformed fields in stored data are handled gracefully with sensible fallbacks (unknown, missing value, skipped rendering).
+- Render errors are caught and logged without crashing the page.
+
+### Status Computation
+- Status is computed from signals: `open` (no answers) → `candidate` (answers, none verified) → `verified` (verified signals exist) → `contested` (both verified and rejected exist).
+- The `duplicate` and `stale` status values are reserved but not auto-computed. You can set them manually if needed.
+
+### Scaling
+- Patchbook is optimized for projects with <10k questions. For larger knowledge bases, consider:
+  - Archiving old questions to separate files
+  - Implementing pagination in the dashboard
+  - Using a real database instead of JSON files
 
 ## License
 

@@ -1,0 +1,16 @@
+{
+  "id": "evt_854067acb92b",
+  "eventType": "answer_verified",
+  "timestamp": 1781336891,
+  "data": {
+    "answerId": "a_c57ca26779ed48ce",
+    "questionId": "q_ed3e80fe47ef4e19",
+    "evidenceLength": 5,
+    "timeToVerification": 0
+  },
+  "metadata": {
+    "answerId": "a_c57ca26779ed48ce",
+    "questionId": "q_ed3e80fe47ef4e19",
+    "sessionId": "verify-session-1"
+  }
+}
