@@ -11,7 +11,9 @@ import {
   postComment,
   computeQuestionStatus,
   captureAgentMetadata,
+  searchQuestionsInProject,
 } from '../api';
+import { getAnalyticsEvents } from '../analytics';
 import {
   Question,
   Answer,
@@ -1247,6 +1249,347 @@ describe('Verification API', () => {
       });
 
       expect(question.status).toBe('contested');
+    });
+  });
+
+  describe('searchQuestionsInProject', () => {
+    let agentMetadata: AgentMetadata;
+
+    beforeEach(() => {
+      agentMetadata = {
+        model: 'claude-3-5-sonnet',
+        provider: 'anthropic',
+        systemVersion: '2024-06',
+        commitSha: 'abc123def456',
+        branch: 'main',
+      };
+    });
+
+    it('finds questions with single-term search', () => {
+      const q1 = postQuestion(
+        {
+          title: 'React performance optimization',
+          problem: 'Component renders too many times',
+          repository: 'myapp',
+          branch: 'main',
+          keywords: ['react', 'performance'],
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      const q2 = postQuestion(
+        {
+          title: 'How to debug TypeScript?',
+          problem: 'Getting type errors',
+          repository: 'myapp',
+          branch: 'main',
+          keywords: ['typescript'],
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      const results = searchQuestionsInProject('react');
+      expect(results.length).toBe(1);
+      expect(results[0].question.id).toBe(q1.id);
+      expect(results[0].relevance).toBeGreaterThan(0);
+    });
+
+    it('finds questions with multi-term queries using per-term fallback', () => {
+      const q1 = postQuestion(
+        {
+          title: 'React Router white label implementation',
+          problem: 'Need to customize React Router for multiple brands',
+          repository: 'myapp',
+          branch: 'main',
+          keywords: ['react', 'router', 'branding'],
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      const q2 = postQuestion(
+        {
+          title: 'How to use React components?',
+          problem: 'Learning React basics',
+          repository: 'myapp',
+          branch: 'main',
+          keywords: ['react'],
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      // Search for "react router white" - should find both (per-term fallback)
+      // q1 has all 3 terms in title, q2 has "react"
+      const results = searchQuestionsInProject('react router white');
+      expect(results.length).toBe(2);
+      // q1 should rank higher (has all 3 terms + phrase bonus)
+      expect(results[0].question.id).toBe(q1.id);
+      expect(results[1].question.id).toBe(q2.id);
+      // q1: title matches all 3 terms (+9) + phrase bonus (+7) = 16
+      expect(results[0].relevance).toBeGreaterThanOrEqual(9);
+      // q2: title matches "react" (+3)
+      expect(results[1].relevance).toBeGreaterThanOrEqual(3);
+      expect(results[0].relevance).toBeGreaterThan(results[1].relevance);
+    });
+
+    it('ranks full phrase matches higher than per-term matches', () => {
+      const q1 = postQuestion(
+        {
+          title: 'React performance tips',
+          problem: 'How to optimize React component performance',
+          repository: 'myapp',
+          branch: 'main',
+          keywords: [],
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      const q2 = postQuestion(
+        {
+          title: 'Performance in React applications',
+          problem: 'React is slow in my app',
+          repository: 'myapp',
+          branch: 'main',
+          keywords: [],
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      // Search for "React performance"
+      const results = searchQuestionsInProject('React performance');
+      expect(results.length).toBe(2);
+
+      // q1 should rank higher because title matches both terms + phrase bonus
+      const q1Result = results.find(r => r.question.id === q1.id);
+      const q2Result = results.find(r => r.question.id === q2.id);
+
+      expect(q1Result).toBeDefined();
+      expect(q2Result).toBeDefined();
+      expect(q1Result!.relevance).toBeGreaterThan(q2Result!.relevance);
+    });
+
+    it('matches terms in keywords', () => {
+      const q1 = postQuestion(
+        {
+          title: 'State management solutions',
+          problem: 'Need help with state management',
+          repository: 'myapp',
+          branch: 'main',
+          keywords: ['redux', 'state', 'management'],
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      const results = searchQuestionsInProject('redux');
+      expect(results.length).toBe(1);
+      expect(results[0].question.id).toBe(q1.id);
+      expect(results[0].matchedKeywords).toContain('redux');
+    });
+
+    it('matches terms in answer text', () => {
+      const question = postQuestion(
+        {
+          title: 'Debugging issues',
+          problem: 'General debugging help',
+          repository: 'myapp',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      postAnswer(
+        question,
+        {
+          text: 'Use console.log to debug your code effectively',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      const results = searchQuestionsInProject('console');
+      expect(results.length).toBe(1);
+      expect(results[0].question.id).toBe(question.id);
+    });
+
+    it('returns empty array when no matches', () => {
+      postQuestion(
+        {
+          title: 'React performance',
+          problem: 'Slow renders',
+          repository: 'myapp',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      const results = searchQuestionsInProject('django');
+      expect(results.length).toBe(0);
+    });
+
+    it('is case-insensitive', () => {
+      const q1 = postQuestion(
+        {
+          title: 'React Router setup',
+          problem: 'Setting up React Router',
+          repository: 'myapp',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      const resultsLower = searchQuestionsInProject('react router');
+      const resultsUpper = searchQuestionsInProject('REACT ROUTER');
+      const resultsMixed = searchQuestionsInProject('ReAcT rOuTeR');
+
+      expect(resultsLower.length).toBe(1);
+      expect(resultsUpper.length).toBe(1);
+      expect(resultsMixed.length).toBe(1);
+      expect(resultsLower[0].question.id).toBe(q1.id);
+      expect(resultsUpper[0].question.id).toBe(q1.id);
+      expect(resultsMixed[0].question.id).toBe(q1.id);
+    });
+
+    it('tracks search_performed events with correct data', () => {
+      const q1 = postQuestion(
+        {
+          title: 'Test question',
+          problem: 'Test problem',
+          repository: 'repo',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      // Clear events before search
+      const eventsBefore = getAnalyticsEvents('search_performed');
+      const initialCount = eventsBefore.length;
+
+      // Perform search
+      const results = searchQuestionsInProject('test');
+
+      // Check that search_performed event was tracked
+      const eventsAfter = getAnalyticsEvents('search_performed');
+      expect(eventsAfter.length).toBe(initialCount + 1);
+
+      const searchEvent = eventsAfter[eventsAfter.length - 1];
+      expect(searchEvent.eventType).toBe('search_performed');
+      expect(searchEvent.data.query).toBe('test');
+      expect(searchEvent.data.resultCount).toBe(results.length);
+      expect(searchEvent.data.topRelevance).toBeDefined();
+    });
+
+    it('correctly computes relevance scores for multi-field matches', () => {
+      const q1 = postQuestion(
+        {
+          title: 'React optimization',
+          problem: 'React is slow',
+          repository: 'myapp',
+          branch: 'main',
+          keywords: ['react', 'performance'],
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      const results = searchQuestionsInProject('react');
+      expect(results.length).toBe(1);
+
+      // Title match: +3 per term
+      // Problem match: +2 per term
+      // Keyword match: +0.5 per term
+      // Expected: 3 (title) + 2 (problem) + 0.5 (keyword react) + 0.5 (keyword performance doesn't match) = 5.5
+      const expectedMinRelevance = 5.5;
+      expect(results[0].relevance).toBeGreaterThanOrEqual(expectedMinRelevance);
+    });
+
+    it('handles empty queries gracefully', () => {
+      postQuestion(
+        {
+          title: 'Test question',
+          problem: 'Test problem',
+          repository: 'repo',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      const results = searchQuestionsInProject('');
+      expect(results.length).toBe(0);
+    });
+
+    it('handles whitespace-only queries gracefully', () => {
+      postQuestion(
+        {
+          title: 'Test question',
+          problem: 'Test problem',
+          repository: 'repo',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      const results = searchQuestionsInProject('   ');
+      expect(results.length).toBe(0);
+    });
+
+    it('sorts results by relevance descending', () => {
+      const q1 = postQuestion(
+        {
+          title: 'React React React',
+          problem: 'About React',
+          repository: 'myapp',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      const q2 = postQuestion(
+        {
+          title: 'React in frontend',
+          problem: 'General question',
+          repository: 'myapp',
+          branch: 'main',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      const results = searchQuestionsInProject('react');
+      expect(results.length).toBe(2);
+      // q1 should come first (higher relevance due to multiple mentions)
+      expect(results[0].question.id).toBe(q1.id);
+      expect(results[1].question.id).toBe(q2.id);
+      expect(results[0].relevance).toBeGreaterThan(results[1].relevance);
     });
   });
 });

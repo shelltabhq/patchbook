@@ -330,6 +330,11 @@ export function searchQuestionsInProject(query: string): SearchResult[] {
   const normalizedQuery = query.toLowerCase();
   const queryTerms = normalizedQuery.split(/\s+/).filter(t => t.length > 0);
 
+  // Return empty results if query is empty
+  if (queryTerms.length === 0) {
+    return [];
+  }
+
   const questions = getAllQuestions();
   const results: SearchResult[] = [];
 
@@ -337,51 +342,51 @@ export function searchQuestionsInProject(query: string): SearchResult[] {
     const matchedKeywords: string[] = [];
     let relevance = 0;
 
-    // Title match (highest weight)
-    if (question.title.toLowerCase().includes(normalizedQuery)) {
-      relevance += 10;
-      for (const term of queryTerms) {
-        if (question.title.toLowerCase().includes(term)) {
-          matchedKeywords.push(term);
-          relevance += 3;
-        }
+    const titleLower = question.title.toLowerCase();
+    const problemLower = question.problem.toLowerCase();
+
+    // Per-term matching with bonuses for full phrase
+    // Title: +3 per term, +7 bonus for full phrase
+    for (const term of queryTerms) {
+      if (titleLower.includes(term)) {
+        matchedKeywords.push(term);
+        relevance += 3;
       }
     }
-
-    // Problem match (medium weight)
-    if (question.problem.toLowerCase().includes(normalizedQuery)) {
-      relevance += 5;
-      for (const term of queryTerms) {
-        if (question.problem.toLowerCase().includes(term)) {
-          matchedKeywords.push(term);
-          relevance += 2;
-        }
-      }
+    if (queryTerms.length > 1 && titleLower.includes(normalizedQuery)) {
+      relevance += 7;
     }
 
-    // Keywords match (low weight)
+    // Problem: +2 per term, +3 bonus for full phrase
+    for (const term of queryTerms) {
+      if (problemLower.includes(term)) {
+        matchedKeywords.push(term);
+        relevance += 2;
+      }
+    }
+    if (queryTerms.length > 1 && problemLower.includes(normalizedQuery)) {
+      relevance += 3;
+    }
+
+    // Keywords: +0.5 per term match
     for (const keyword of question.keywords) {
-      if (keyword.toLowerCase().includes(normalizedQuery)) {
-        relevance += 1;
-        matchedKeywords.push(keyword);
-      } else {
-        for (const term of queryTerms) {
-          if (keyword.toLowerCase().includes(term)) {
-            matchedKeywords.push(keyword);
-            relevance += 0.5;
-          }
+      const keywordLower = keyword.toLowerCase();
+      for (const term of queryTerms) {
+        if (keywordLower.includes(term)) {
+          matchedKeywords.push(keyword);
+          relevance += 0.5;
+          break; // Only count each keyword once
         }
       }
     }
 
-    // Answer text match (low weight)
+    // Answer text: +0.5 per term match
     for (const answer of question.answers) {
-      if (answer.text.toLowerCase().includes(normalizedQuery)) {
-        relevance += 1;
-        for (const term of queryTerms) {
-          if (answer.text.toLowerCase().includes(term)) {
-            relevance += 0.5;
-          }
+      const answerLower = answer.text.toLowerCase();
+      for (const term of queryTerms) {
+        if (answerLower.includes(term)) {
+          relevance += 0.5;
+          break; // Count each answer only once per query
         }
       }
     }
@@ -397,6 +402,21 @@ export function searchQuestionsInProject(query: string): SearchResult[] {
 
   // Sort by relevance (descending)
   results.sort((a, b) => b.relevance - a.relevance);
+
+  // Track search_performed event
+  const topRelevance = results.length > 0 ? results[0].relevance : 0;
+  trackEvent(
+    'search_performed',
+    {
+      query,
+      resultCount: results.length,
+      topRelevance,
+    },
+    {
+      query,
+    }
+  );
+
   return results;
 }
 
