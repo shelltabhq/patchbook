@@ -809,6 +809,47 @@ describe('Verification API', () => {
       const verified = getVerifiedAnswer(question);
       expect(verified).toBe(answer2);
     });
+
+    it('ranks old answer with 2 verifications higher than brand new answer with 0 verifications', () => {
+      // Create first answer and verify it twice (old answer)
+      const oldAnswer = postAnswer(
+        question,
+        {
+          text: 'Proven solution from long ago',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      verifyAnswer(question, {
+        evidence: 'Tested and verified',
+        answerId: oldAnswer.id,
+        sessionId: 'verify-session-1',
+      });
+
+      verifyAnswer(question, {
+        evidence: 'Confirmed again',
+        answerId: oldAnswer.id,
+        sessionId: 'verify-session-2',
+      });
+
+      // Immediately create a new answer (very recent, no verifications)
+      const newAnswer = postAnswer(
+        question,
+        {
+          text: 'Brand new unverified solution',
+          author: 'charlie',
+          authorSessionName: 'session-3',
+        },
+        agentMetadata
+      );
+
+      // The old answer should be selected because verification count dominates over recency
+      const verified = getVerifiedAnswer(question);
+      expect(verified).toBe(oldAnswer);
+      expect(verified).not.toBe(newAnswer);
+    });
   });
 
   describe('postComment', () => {

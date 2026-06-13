@@ -282,13 +282,26 @@ export function getVerifiedAnswer(question: Question): Answer | null {
     return null;
   }
 
-  // Score each verified answer by: verifiedCount * 10 - rejectedCount * 5 + (recency/1000000)
+  // Score each verified answer:
+  // - verifiedCount * 10 dominates (each verification worth 10 points)
+  // - rejectedCount * 5 penalty (each rejection worth -5 points)
+  // - recency as a minimal tie-breaker (normalized to 0-1 range, max 0.1 bonus)
   const scoredAnswers = verifiedAnswers.map((answer) => {
     const verifiedCount = answer.signals.filter((s) => s.type === 'verified').length;
     const rejectedCount = answer.signals.filter((s) => s.type === 'rejected').length;
-    const recency = answer.createdAt; // Most recent answers get higher score
 
-    const score = verifiedCount * 10 - rejectedCount * 5 + recency / 1000000;
+    // Normalize recency to a small tie-breaker (0-1, then scale to 0-0.1)
+    // Older answers: lower recency bonus; newer answers: higher recency bonus
+    // Find the max createdAt among all verified answers to normalize
+    const maxCreatedAt = Math.max(...verifiedAnswers.map((a) => a.createdAt));
+    const minCreatedAt = Math.min(...verifiedAnswers.map((a) => a.createdAt));
+    const timeRange = maxCreatedAt - minCreatedAt;
+    const recencyNormalized = timeRange > 0
+      ? (answer.createdAt - minCreatedAt) / timeRange
+      : 0.5; // If all same age, neutral tie-breaker
+    const recencyBonus = recencyNormalized * 0.1; // Max 0.1 bonus
+
+    const score = verifiedCount * 10 - rejectedCount * 5 + recencyBonus;
 
     return { answer, score };
   });
