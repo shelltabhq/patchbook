@@ -2421,4 +2421,358 @@ describe('Verification API', () => {
       expect(highlyVerifiedResult!.relevance).toBeGreaterThan(unverifiedResult!.relevance);
     });
   });
+
+  describe('Full Workflow E2E Tests', () => {
+    it('Test 1: Complete workflow chain - postQuestion, postAnswer, verifyAnswer with different sessionIds', () => {
+      // Post question with all required fields
+      const question = postQuestion(
+        {
+          title: 'How to optimize React rendering?',
+          problem: 'Component re-renders excessively',
+          repository: 'react-app',
+          branch: 'main',
+          keywords: ['react', 'performance', 'rendering'],
+          author: 'alice',
+          authorSessionName: 'debug-session-1',
+        },
+        agentMetadata
+      );
+
+      expect(question.id).toMatch(/^q_/);
+      expect(question.status).toBe('open');
+      expect(question.answers).toEqual([]);
+
+      // Post answer and destructure {answer, updatedQuestion}
+      const { answer, updatedQuestion: q1 } = postAnswer(
+        question,
+        {
+          text: 'Use React.memo() to prevent re-renders of child components',
+          author: 'bob',
+          authorSessionName: 'solution-session-1',
+        },
+        agentMetadata
+      );
+
+      expect(answer.id).toMatch(/^a_/);
+      expect(answer.text).toContain('React.memo');
+      expect(q1.status).toBe('candidate');
+      expect(q1.answers.length).toBe(1);
+
+      // Verify answer with sessionId 1 (should work)
+      const { signal: signal1, updatedQuestion: q2 } = verifyAnswer(q1, {
+        answerId: answer.id,
+        sessionId: 'verify-session-1',
+        evidence: 'Tested in production: reduced re-renders from 50 to 5 per interaction',
+      });
+
+      expect(signal1.type).toBe('verified');
+      expect(signal1.sessionId).toBe('verify-session-1');
+      expect(q2.status).toBe('verified');
+
+      // Try to verify again with same sessionId (should fail with "already verified")
+      expect(() => {
+        verifyAnswer(q2, {
+          answerId: answer.id,
+          sessionId: 'verify-session-1',
+          evidence: 'Trying again',
+        });
+      }).toThrow('already verified answer');
+
+      // Verify with different sessionId 2 (should work)
+      const q2Fresh = getQuestion(question.id)!;
+      const { signal: signal2, updatedQuestion: q3 } = verifyAnswer(q2Fresh, {
+        answerId: answer.id,
+        sessionId: 'verify-session-2',
+        evidence: 'Also confirmed on staging environment',
+      });
+
+      expect(signal2.type).toBe('verified');
+      expect(signal2.sessionId).toBe('verify-session-2');
+      expect(q3.answers[0].signals.length).toBe(2);
+
+      // Check question.status remains verified (not contested, same answer with multiple verified signals)
+      expect(q3.status).toBe('verified');
+    });
+
+    it('Test 2: Validation - missing required fields should fail', () => {
+      // postQuestion with missing repository (should fail)
+      expect(() => {
+        postQuestion(
+          {
+            title: 'Test title',
+            problem: 'Test problem',
+            repository: '',
+            branch: 'main',
+            author: 'alice',
+            authorSessionName: 'session-1',
+          },
+          agentMetadata
+        );
+      }).toThrow('repository is required');
+
+      // postQuestion with missing author (should fail)
+      expect(() => {
+        postQuestion(
+          {
+            title: 'Test title',
+            problem: 'Test problem',
+            repository: 'repo',
+            branch: 'main',
+            author: '',
+            authorSessionName: 'session-1',
+          },
+          agentMetadata
+        );
+      }).toThrow('author is required');
+
+      // Create a question for answer validation tests
+      const question = postQuestion(
+        {
+          title: 'Test',
+          problem: 'Test',
+          repository: 'repo',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      // postAnswer with missing author (should fail)
+      expect(() => {
+        postAnswer(
+          question,
+          {
+            text: 'Solution',
+            author: '',
+            authorSessionName: 'session-2',
+          },
+          agentMetadata
+        );
+      }).toThrow('author is required');
+    });
+
+    it('Test 3: Contested logic - postQuestion, postAnswer A, postAnswer B, verify A, reject B, check verified status', () => {
+      const question = postQuestion(
+        {
+          title: 'Best state management approach?',
+          problem: 'Need guidance on state management',
+          repository: 'my-app',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      // Post answer A
+      const { answer: answerA, updatedQuestion: q1 } = postAnswer(
+        question,
+        {
+          text: 'Use Redux for everything',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      expect(q1.status).toBe('candidate');
+
+      // Post answer B
+      const q1Fresh = getQuestion(question.id)!;
+      const { answer: answerB, updatedQuestion: q2 } = postAnswer(
+        q1Fresh,
+        {
+          text: 'Use Context API instead',
+          author: 'charlie',
+          authorSessionName: 'session-3',
+        },
+        agentMetadata
+      );
+
+      expect(q2.status).toBe('candidate');
+
+      // Verify answer A (different answers, so status should be 'verified' not 'contested')
+      const q2Fresh = getQuestion(question.id)!;
+      const { updatedQuestion: q3 } = verifyAnswer(q2Fresh, {
+        answerId: answerA.id,
+        sessionId: 'verify-session-1',
+        evidence: 'Works well for large apps with complex state',
+      });
+
+      expect(q3.status).toBe('verified');
+
+      // Reject answer B (different answer from the verified one, so status stays 'verified')
+      const q3Fresh = getQuestion(question.id)!;
+      const { updatedQuestion: q4 } = rejectAnswer(q3Fresh, {
+        answerId: answerB.id,
+        sessionId: 'reject-session-1',
+        reason: 'Too simple for this project scope',
+      });
+
+      expect(q4.status).toBe('verified');
+
+      // Now reject answer A (same answer that was verified - NOW it should be contested)
+      const q4Fresh = getQuestion(question.id)!;
+      const { updatedQuestion: q5 } = rejectAnswer(q4Fresh, {
+        answerId: answerA.id,
+        sessionId: 'reject-session-2',
+        reason: 'Overkill for simple state',
+      });
+
+      expect(q5.status).toBe('contested');
+    });
+
+    it('Test 3b: Contested with same answer having both signals', () => {
+      const question = postQuestion(
+        {
+          title: 'How to handle async operations?',
+          problem: 'Confusion about async patterns',
+          repository: 'app',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      // Post single answer
+      const { answer, updatedQuestion: q1 } = postAnswer(
+        question,
+        {
+          text: 'Use async/await for cleaner code',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      // Verify it
+      const q1Fresh = getQuestion(question.id)!;
+      const { updatedQuestion: q2 } = verifyAnswer(q1Fresh, {
+        answerId: answer.id,
+        sessionId: 'verify-session-1',
+        evidence: 'Tested on modern Node versions',
+      });
+
+      expect(q2.status).toBe('verified');
+
+      // Reject the SAME answer by different session
+      const q2Fresh = getQuestion(question.id)!;
+      const { updatedQuestion: q3 } = rejectAnswer(q2Fresh, {
+        answerId: answer.id,
+        sessionId: 'reject-session-1',
+        reason: 'Fails on older Node versions',
+      });
+
+      // Check status = 'contested' (same answer, both verified and rejected)
+      expect(q3.status).toBe('contested');
+    });
+  });
+
+  describe('Integration with README quick-start workflow', () => {
+    it('reproduces README example: search → post → answer → verify flow', () => {
+      // Step 1: Search before debugging (no results expected on empty DB)
+      let results = searchQuestionsInProject('useLocation white screen');
+      expect(results).toEqual([]);
+
+      // Step 2: Post a question (matching README example)
+      const agentMetadata = captureAgentMetadata();
+      const question = postQuestion(
+        {
+          title: 'useLocation hook crashes outside Router',
+          problem: 'Using useLocation() in components outside Router context throws error',
+          repository: 'my-repo',
+          branch: 'main',
+          keywords: ['react', 'hooks', 'routing'],
+          author: 'agent-session-id',
+          authorSessionName: 'Debugging React Routing',
+        },
+        agentMetadata
+      );
+
+      expect(question.id).toMatch(/^q_/);
+      expect(question.status).toBe('open');
+
+      // Step 3: Post an answer
+      const { answer, updatedQuestion } = postAnswer(question, {
+        text: 'Use window.location.search instead',
+        author: 'agent-1',
+        authorSessionName: 'Debugging React Routing',
+      }, agentMetadata);
+
+      expect(answer.id).toMatch(/^a_/);
+      expect(updatedQuestion.status).toBe('candidate');
+
+      // Step 4: Verify with evidence
+      const { signal, updatedQuestion: q2 } = verifyAnswer(updatedQuestion, {
+        answerId: answer.id,
+        sessionId: 'ses_myagent',
+        evidence: 'Tested on main: npm test --filter=routing, 42 tests pass',
+      });
+
+      expect(signal.type).toBe('verified');
+      expect(q2.status).toBe('verified');
+
+      // Step 5: Search again - should now find the verified answer
+      results = searchQuestionsInProject('useLocation');
+      expect(results.length).toBe(1);
+      expect(results[0].question.id).toBe(question.id);
+      expect(results[0].question.status).toBe('verified');
+    });
+
+    it('reproduces README example with additional verify step', () => {
+      const agentMetadata = captureAgentMetadata();
+
+      // Post question
+      const question = postQuestion(
+        {
+          title: 'Streaming cuts off at token limit on Haiku',
+          problem: 'When streaming long documents, Haiku halts mid-token at ~95k input tokens',
+          repository: 'shelltab-cloud',
+          branch: 'main',
+          keywords: ['streaming', 'token-limit', 'haiku'],
+          author: 'agent-123',
+          authorSessionName: 'Token Limit Investigation',
+        },
+        agentMetadata
+      );
+
+      expect(question.status).toBe('open');
+
+      // Post answer
+      const { answer, updatedQuestion } = postAnswer(question, {
+        text: 'Split input into 30k chunks and process sequentially. Haiku streams all chunks without cutoff.',
+        author: 'agent-session-id',
+        authorSessionName: 'Fixing Haiku Streaming',
+      }, agentMetadata);
+
+      expect(updatedQuestion.status).toBe('candidate');
+
+      // Verify with evidence
+      const { signal, updatedQuestion: q2 } = verifyAnswer(updatedQuestion, {
+        answerId: answer.id,
+        sessionId: 'ses_myagent',
+        evidence: 'Tested on main: 250k document split into 30k chunks, all streamed without truncation. Node 22, claude-haiku-4-5. 10 consecutive runs, 100% success.',
+      });
+
+      expect(signal.type).toBe('verified');
+      expect(q2.status).toBe('verified');
+
+      // Verify again from a fresh load (demonstrates chaining)
+      const q2Fresh = getQuestion(question.id)!;
+      const { signal: signal2 } = verifyAnswer(q2Fresh, {
+        answerId: answer.id,
+        sessionId: 'ses_another_agent',
+        evidence: 'Confirmed with Opus model as well, same chunking strategy works',
+      });
+
+      expect(signal2.type).toBe('verified');
+
+      // Final state should still be verified
+      const finalQuestion = getQuestion(question.id)!;
+      expect(finalQuestion.status).toBe('verified');
+      expect(finalQuestion.answers[0].signals.length).toBe(2);
+    });
+  });
 });
