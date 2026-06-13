@@ -382,4 +382,218 @@ describe('Mutation Workflow - Chainable Returns', () => {
       );
     });
   });
+
+  describe('Field Validation - postQuestion', () => {
+    it('throws when repository is empty', () => {
+      expect(() => {
+        postQuestion(
+          {
+            title: 'Test question',
+            problem: 'Test problem',
+            repository: '',
+            branch: 'main',
+            author: 'alice',
+            authorSessionName: 'session-1',
+          },
+          agentMetadata
+        );
+      }).toThrow('repository is required');
+    });
+
+    it('throws when repository is undefined', () => {
+      expect(() => {
+        postQuestion(
+          {
+            title: 'Test question',
+            problem: 'Test problem',
+            repository: undefined as any,
+            branch: 'main',
+            author: 'alice',
+            authorSessionName: 'session-1',
+          },
+          agentMetadata
+        );
+      }).toThrow('repository is required');
+    });
+
+    it('throws when branch is empty', () => {
+      expect(() => {
+        postQuestion(
+          {
+            title: 'Test question',
+            problem: 'Test problem',
+            repository: 'repo',
+            branch: '',
+            author: 'alice',
+            authorSessionName: 'session-1',
+          },
+          agentMetadata
+        );
+      }).toThrow('branch is required');
+    });
+
+    it('throws when branch is undefined', () => {
+      expect(() => {
+        postQuestion(
+          {
+            title: 'Test question',
+            problem: 'Test problem',
+            repository: 'repo',
+            branch: undefined as any,
+            author: 'alice',
+            authorSessionName: 'session-1',
+          },
+          agentMetadata
+        );
+      }).toThrow('branch is required');
+    });
+
+    it('throws when author is empty', () => {
+      expect(() => {
+        postQuestion(
+          {
+            title: 'Test question',
+            problem: 'Test problem',
+            repository: 'repo',
+            branch: 'main',
+            author: '',
+            authorSessionName: 'session-1',
+          },
+          agentMetadata
+        );
+      }).toThrow('author is required');
+    });
+
+    it('throws when author is undefined', () => {
+      expect(() => {
+        postQuestion(
+          {
+            title: 'Test question',
+            problem: 'Test problem',
+            repository: 'repo',
+            branch: 'main',
+            author: undefined as any,
+            authorSessionName: 'session-1',
+          },
+          agentMetadata
+        );
+      }).toThrow('author is required');
+    });
+
+    it('throws when authorSessionName is empty', () => {
+      expect(() => {
+        postQuestion(
+          {
+            title: 'Test question',
+            problem: 'Test problem',
+            repository: 'repo',
+            branch: 'main',
+            author: 'alice',
+            authorSessionName: '',
+          },
+          agentMetadata
+        );
+      }).toThrow('authorSessionName is required');
+    });
+
+    it('throws when authorSessionName is undefined', () => {
+      expect(() => {
+        postQuestion(
+          {
+            title: 'Test question',
+            problem: 'Test problem',
+            repository: 'repo',
+            branch: 'main',
+            author: 'alice',
+            authorSessionName: undefined as any,
+          },
+          agentMetadata
+        );
+      }).toThrow('authorSessionName is required');
+    });
+  });
+
+  describe('Field Validation - postAnswer', () => {
+    it('throws when author is empty', () => {
+      expect(() => {
+        postAnswer(
+          question,
+          {
+            text: 'Test solution',
+            author: '',
+            authorSessionName: 'session-2',
+          },
+          agentMetadata
+        );
+      }).toThrow('author is required');
+    });
+
+    it('throws when author is undefined', () => {
+      expect(() => {
+        postAnswer(
+          question,
+          {
+            text: 'Test solution',
+            author: undefined as any,
+            authorSessionName: 'session-2',
+          },
+          agentMetadata
+        );
+      }).toThrow('author is required');
+    });
+
+    it('throws when authorSessionName is empty', () => {
+      expect(() => {
+        postAnswer(
+          question,
+          {
+            text: 'Test solution',
+            author: 'bob',
+            authorSessionName: '',
+          },
+          agentMetadata
+        );
+      }).toThrow('authorSessionName is required');
+    });
+
+    it('throws when authorSessionName is undefined', () => {
+      expect(() => {
+        postAnswer(
+          question,
+          {
+            text: 'Test solution',
+            author: 'bob',
+            authorSessionName: undefined as any,
+          },
+          agentMetadata
+        );
+      }).toThrow('authorSessionName is required');
+    });
+  });
+
+  describe('Field Validation - postComment', () => {
+    it('throws when author is empty', () => {
+      expect(() => {
+        postComment(question, 'This is a comment', '', 'session-2', agentMetadata);
+      }).toThrow('author is required');
+    });
+
+    it('throws when author is undefined', () => {
+      expect(() => {
+        postComment(question, 'This is a comment', undefined as any, 'session-2', agentMetadata);
+      }).toThrow('author is required');
+    });
+
+    it('throws when authorSessionName is empty', () => {
+      expect(() => {
+        postComment(question, 'This is a comment', 'bob', '', agentMetadata);
+      }).toThrow('authorSessionName is required');
+    });
+
+    it('throws when authorSessionName is undefined', () => {
+      expect(() => {
+        postComment(question, 'This is a comment', 'bob', undefined as any, agentMetadata);
+      }).toThrow('authorSessionName is required');
+    });
+  });
 });

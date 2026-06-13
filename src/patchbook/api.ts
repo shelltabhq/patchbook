@@ -80,6 +80,18 @@ export function postQuestion(
   if (!input.problem?.trim()) {
     throw new Error('Question problem description is required');
   }
+  if (!input.repository?.trim()) {
+    throw new Error('repository is required');
+  }
+  if (!input.branch?.trim()) {
+    throw new Error('branch is required');
+  }
+  if (!input.author?.trim()) {
+    throw new Error('author is required');
+  }
+  if (!input.authorSessionName?.trim()) {
+    throw new Error('authorSessionName is required');
+  }
 
   const now = Math.floor(Date.now() / 1000);
   const question: Question = {
@@ -131,6 +143,12 @@ export function postAnswer(
 ): { answer: Answer; updatedQuestion: Question } {
   if (!input.text?.trim()) {
     throw new Error('Answer text is required');
+  }
+  if (!input.author?.trim()) {
+    throw new Error('author is required');
+  }
+  if (!input.authorSessionName?.trim()) {
+    throw new Error('authorSessionName is required');
   }
 
   // 1. Load fresh copy to verify version (immutable pattern)
@@ -578,6 +596,12 @@ export function postComment(
 ): { comment: Comment; updatedQuestion: Question } {
   if (!text?.trim()) {
     throw new Error('Comment text is required');
+  }
+  if (!author?.trim()) {
+    throw new Error('author is required');
+  }
+  if (!authorSessionName?.trim()) {
+    throw new Error('authorSessionName is required');
   }
 
   // 1. Load fresh copy to verify version (immutable pattern)
