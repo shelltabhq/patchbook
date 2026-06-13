@@ -200,7 +200,7 @@ describe('Mutation Workflow - Chainable Returns', () => {
       expect(result.updatedQuestion.version).toBe(3);
     });
 
-    it('enables chaining: postAnswer -> rejectAnswer -> verifyAnswer -> contested', () => {
+    it('enables chaining: postAnswer -> rejectAnswer -> verifyAnswer -> verified', () => {
       const ans2Result = postAnswer(
         question,
         {
@@ -227,7 +227,9 @@ describe('Mutation Workflow - Chainable Returns', () => {
       });
       q = verify.updatedQuestion;
 
-      expect(q.status).toBe('contested');
+      // Different answers have the signals (first rejected, second verified)
+      // So status is verified, not contested
+      expect(q.status).toBe('verified');
       expect(q.version).toBe(5);
     });
   });
@@ -312,12 +314,11 @@ describe('Mutation Workflow - Chainable Returns', () => {
       expectedVersion++;
       expect(q.version).toBe(expectedVersion);
 
-      // Reject second answer - would have failed with old API due to version mismatch
-      const ans2 = q.answers[1];
+      // Reject the same first answer (making it contested, not a different answer)
       const { updatedQuestion: q3 } = rejectAnswer(q, {
-        answerId: ans2.id,
+        answerId: ans1.id,
         sessionId: 'reject-1',
-        reason: 'No',
+        reason: 'But fails in some cases',
       });
       q = q3;
       expectedVersion++;
@@ -335,7 +336,7 @@ describe('Mutation Workflow - Chainable Returns', () => {
       expectedVersion++;
       expect(q.version).toBe(expectedVersion);
 
-      // Verify final state
+      // Verify final state - now contested because answer 1 has both verified and rejected
       expect(q.answers.length).toBe(3);
       expect(q.comments.length).toBe(1);
       expect(q.status).toBe('contested');

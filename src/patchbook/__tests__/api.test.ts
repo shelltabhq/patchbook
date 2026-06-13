@@ -537,7 +537,44 @@ describe('Verification API', () => {
       );
     });
 
-    it('marks question as contested when both verified and rejected exist', () => {
+    it('marks question as contested when same answer has both verified and rejected signals', () => {
+      const { answer: answer1 } = postAnswer(
+        question,
+        {
+          text: 'Solution A',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      // Reload question after first answer
+      let currentQuestion = getQuestion(question.id)!;
+
+      // Verify the answer
+      verifyAnswer(currentQuestion, {
+        answerId: answer1.id,
+        sessionId: 'verify-session-1',
+        evidence: 'Works',
+      });
+
+      // Reload to check status (should be verified)
+      currentQuestion = getQuestion(question.id)!;
+      expect(currentQuestion.status).toBe('verified');
+
+      // Reject the SAME answer by a different session
+      rejectAnswer(currentQuestion, {
+        answerId: answer1.id,
+        sessionId: 'reject-session-1',
+        reason: 'Does not work',
+      });
+
+      // Reload to check final status (now contested since same answer has both signals)
+      currentQuestion = getQuestion(question.id)!;
+      expect(currentQuestion.status).toBe('contested');
+    });
+
+    it('returns verified when different answers have verified vs rejected signals', () => {
       const { answer: answer1 } = postAnswer(
         question,
         {
@@ -564,30 +601,31 @@ describe('Verification API', () => {
       // Reload question after second answer
       currentQuestion = getQuestion(question.id)!;
 
-      // Verify first answer
+      // Verify answer1
       verifyAnswer(currentQuestion, {
         answerId: answer1.id,
         sessionId: 'verify-session-1',
-        evidence: 'Works',
+        evidence: 'Works great',
       });
 
       // Reload to check status
       currentQuestion = getQuestion(question.id)!;
       expect(currentQuestion.status).toBe('verified');
 
-      // Reject second answer
+      // Reject answer2 (DIFFERENT answer)
       rejectAnswer(currentQuestion, {
         answerId: answer2.id,
         sessionId: 'reject-session-1',
         reason: 'Does not work',
       });
 
-      // Reload to check final status
+      // Reload to check final status - should remain verified
+      // (not contested, because different answers have the signals)
       currentQuestion = getQuestion(question.id)!;
-      expect(currentQuestion.status).toBe('contested');
+      expect(currentQuestion.status).toBe('verified');
     });
 
-    it('marks question as contested regardless of order', () => {
+    it('remains verified when different answers have verified vs rejected signals', () => {
       const { answer: answer1 } = postAnswer(
         question,
         {
@@ -625,19 +663,20 @@ describe('Verification API', () => {
       currentQuestion = getQuestion(question.id)!;
       expect(currentQuestion.status).toBe('candidate');
 
-      // Verify second answer
+      // Verify second answer (different answer)
       verifyAnswer(currentQuestion, {
         answerId: answer2.id,
         sessionId: 'verify-session-1',
         evidence: 'Works',
       });
 
-      // Reload to check final status
+      // Reload to check final status - should be verified, not contested
+      // (different answers have conflicting signals, not same answer)
       currentQuestion = getQuestion(question.id)!;
-      expect(currentQuestion.status).toBe('contested');
+      expect(currentQuestion.status).toBe('verified');
     });
 
-    it('stays contested with multiple verifications and rejections', () => {
+    it('stays contested with multiple signals on same answer', () => {
       const { answer: answer1 } = postAnswer(
         question,
         {
@@ -651,19 +690,7 @@ describe('Verification API', () => {
       // Reload question after first answer
       let currentQuestion = getQuestion(question.id)!;
 
-      const { answer: answer2 } = postAnswer(
-        currentQuestion,
-        {
-          text: 'Solution B',
-          author: 'charlie',
-          authorSessionName: 'session-3',
-        },
-        agentMetadata
-      );
-
-      // Reload question after second answer
-      currentQuestion = getQuestion(question.id)!;
-
+      // Verify answer1
       verifyAnswer(currentQuestion, {
         evidence: 'Tested and verified',
         answerId: answer1.id,
@@ -672,32 +699,38 @@ describe('Verification API', () => {
 
       // Reload after first verify
       currentQuestion = getQuestion(question.id)!;
+      expect(currentQuestion.status).toBe('verified');
 
+      // Reject the same answer by a different session
       rejectAnswer(currentQuestion, {
-        answerId: answer2.id,
+        answerId: answer1.id,
         sessionId: 'reject-session-1',
-        reason: 'Fails',
+        reason: 'Fails in some cases',
       });
 
-      // Reload after first reject
+      // Reload - should now be contested (same answer has both)
       currentQuestion = getQuestion(question.id)!;
+      expect(currentQuestion.status).toBe('contested');
 
+      // Add another verification to the same answer
       verifyAnswer(currentQuestion, {
-        evidence: 'Tested and verified',
+        evidence: 'Works in other cases',
         answerId: answer1.id,
         sessionId: 'verify-session-2',
       });
 
-      // Reload after second verify
+      // Reload to verify - should still be contested
       currentQuestion = getQuestion(question.id)!;
+      expect(currentQuestion.status).toBe('contested');
 
+      // Add another rejection to the same answer
       rejectAnswer(currentQuestion, {
-        answerId: answer2.id,
+        answerId: answer1.id,
         sessionId: 'reject-session-2',
-        reason: 'Still fails',
+        reason: 'Still problematic',
       });
 
-      // Reload to verify final status
+      // Reload to verify final status - still contested
       currentQuestion = getQuestion(question.id)!;
       expect(currentQuestion.status).toBe('contested');
     });
@@ -1278,7 +1311,7 @@ describe('Verification API', () => {
       expect(computeQuestionStatus(currentQuestion)).toBe('candidate');
     });
 
-    it('returns contested when has both verified and rejected', () => {
+    it('returns contested when same answer has both verified and rejected signals', () => {
       const { answer: answer1 } = postAnswer(
         question,
         {
@@ -1292,19 +1325,7 @@ describe('Verification API', () => {
       // Reload question after first answer
       let currentQuestion = getQuestion(question.id)!;
 
-      const { answer: answer2 } = postAnswer(
-        currentQuestion,
-        {
-          text: 'Solution 2',
-          author: 'charlie',
-          authorSessionName: 'session-3',
-        },
-        agentMetadata
-      );
-
-      // Reload question after second answer
-      currentQuestion = getQuestion(question.id)!;
-
+      // Verify the answer
       verifyAnswer(currentQuestion, {
         evidence: 'Tested and verified',
         answerId: answer1.id,
@@ -1313,11 +1334,13 @@ describe('Verification API', () => {
 
       // Reload after verify
       currentQuestion = getQuestion(question.id)!;
+      expect(computeQuestionStatus(currentQuestion)).toBe('verified');
 
+      // Reject the same answer by a different session
       rejectAnswer(currentQuestion, {
-        answerId: answer2.id,
+        answerId: answer1.id,
         sessionId: 'reject-session-1',
-        reason: 'Bad',
+        reason: 'Fails in some cases',
       });
 
       // Reload to verify changes were saved
@@ -1444,7 +1467,7 @@ describe('Verification API', () => {
       expect(verified?.text).toContain('React.memo()');
     });
 
-    it('handles multi-answer scenario with conflicts', () => {
+    it('handles multi-answer scenario with conflicts on same answer', () => {
       const question = postQuestion(
         {
           title: 'Best way to handle state?',
@@ -1505,7 +1528,7 @@ describe('Verification API', () => {
       // Still verified (multiple verified answers)
       expect(currentQuestion.status).toBe('verified');
 
-      // But then one gets rejected
+      // Then reject answer1 (same answer that was verified)
       rejectAnswer(currentQuestion, {
         answerId: answer1.id,
         sessionId: 'reject-session-1',
@@ -1514,7 +1537,7 @@ describe('Verification API', () => {
 
       // Reload to check final status
       currentQuestion = getQuestion(question.id)!;
-      // Now contested
+      // Now contested (answer1 has both verified and rejected signals)
       expect(currentQuestion.status).toBe('contested');
     });
 
@@ -1557,7 +1580,7 @@ describe('Verification API', () => {
       currentQuestion = getQuestion(question.id)!;
       expect(currentQuestion.status).toBe('verified');
 
-      // Add another answer and reject it
+      // Add another answer and reject the FIRST answer (already verified)
       const { answer: answer2 } = postAnswer(
         currentQuestion,
         {
@@ -1572,10 +1595,11 @@ describe('Verification API', () => {
       currentQuestion = getQuestion(question.id)!;
       expect(currentQuestion.status).toBe('verified');
 
+      // Reject the first answer (which was already verified) - makes it contested
       rejectAnswer(currentQuestion, {
-        answerId: answer2.id,
+        answerId: answer.id,
         sessionId: 'reject-session-1',
-        reason: 'Not applicable',
+        reason: 'Not applicable in some contexts',
       });
 
       // Reload to check final status

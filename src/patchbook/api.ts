@@ -39,14 +39,19 @@ export function captureAgentMetadata(): AgentMetadata {
 export function computeQuestionStatus(question: Question): QuestionStatus {
   if (question.answers.length === 0) return 'open';
 
+  // Check if any single answer has BOTH verified AND rejected signals (contested)
+  const hasContestedAnswer = question.answers.some((a) => {
+    const hasVerif = a.signals.some((s) => s.type === 'verified');
+    const hasRej = a.signals.some((s) => s.type === 'rejected');
+    return hasVerif && hasRej;
+  });
+
+  if (hasContestedAnswer) return 'contested';
+
   const hasVerified = question.answers.some((a) =>
     a.signals.some((s) => s.type === 'verified')
   );
-  const hasRejected = question.answers.some((a) =>
-    a.signals.some((s) => s.type === 'rejected')
-  );
 
-  if (hasVerified && hasRejected) return 'contested';
   if (hasVerified) return 'verified';
   return 'candidate';
 }

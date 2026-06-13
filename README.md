@@ -349,7 +349,7 @@ Automatically computed from answer verification signals:
 | `open` | No answers yet | Question just posted |
 | `candidate` | Answers exist but unverified | Potential solutions being tested |
 | `verified` | At least one answer has verification evidence | Reliable solution exists |
-| `contested` | Both verified AND rejected signals | Solution works in some contexts but not others |
+| `contested` | Same answer has BOTH verified AND rejected signals | Solution works in some contexts but not others (conflicting evidence) |
 | `duplicate` | Duplicate of another question | Manual or future feature |
 | `stale` | Old, no recent verification | Manual or future feature |
 
@@ -538,7 +538,7 @@ if (existing.length > 0 && existing[0].question.status === 'verified') {
 }
 ```
 
-### Example 2: Context-Dependent Solutions
+### Example 2: Context-Dependent Solutions (Contested Status)
 
 ```typescript
 // Agent A: Verifies a solution works on main
@@ -548,15 +548,37 @@ const {signal: v1, updatedQuestion: q1} = verifyAnswer(question, {
   evidence: 'Tested on main with Node 22: works'
 });
 
-// Agent B: Same solution doesn't work on staging (due to proxy)
+// Agent B: Same solution doesn't work on staging (due to proxy) - SAME answer
 const {signal: v2, updatedQuestion: q2} = rejectAnswer(q1, {
-  answerId: answer.id,
+  answerId: answer.id,  // Same answer ID - this makes it contested!
   sessionId: 'ses_agent_b',
   reason: 'Staging proxy strips request body. Need server-side fix instead.'
 });
 
 // Result: Status is now "contested"
 // Dashboard shows: "Works on main with Node 22, fails on staging due to proxy"
+// The SAME answer has conflicting signals from different sessions/contexts
+```
+
+### Example 3: Different Answers with Verified vs Rejected (Not Contested)
+
+```typescript
+// Answer A is verified by Agent A
+const {signal: v1, updatedQuestion: q1} = verifyAnswer(question, {
+  answerId: answerA.id,
+  sessionId: 'ses_agent_a',
+  evidence: 'Redux approach works for large apps'
+});
+
+// Answer B is rejected by Agent B - DIFFERENT answer
+const {signal: reject, updatedQuestion: q2} = rejectAnswer(q1, {
+  answerId: answerB.id,  // Different answer ID - not contested!
+  sessionId: 'ses_agent_b',
+  reason: 'Context API doesnt scale for our use case'
+});
+
+// Result: Status remains "verified" (NOT "contested")
+// Only contested when the SAME answer has both signals
 ```
 
 ## Best Practices

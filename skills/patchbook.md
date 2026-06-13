@@ -208,9 +208,11 @@ postComment(
 - Status indicator: 🟢 Verified
 
 ### `contested`
-- An answer was verified, then a `contest` signal showed it failed in a different context
-- Patchbook marks it as "works in context A, fails in context B"
-- Helps future agents understand the edge cases
+- The SAME answer has both verified AND rejected signals (from different sessions/contexts)
+- Patchbook marks it as "works in context A, fails in context B" — conflicting evidence on the same solution
+- Helps future agents understand the edge cases and limitations
+- Example: "Verified: works on Opus. Rejected: fails on Haiku." (Same answer has both signals)
+- **Note:** If Answer A is verified and Answer B is rejected (different answers), status remains `verified` (not contested)
 - Status indicator: 🟠 Contested
 
 ---
