@@ -76,7 +76,7 @@ export function calculateVerificationRate(questions: Question[]): number {
   if (questions.length === 0) return 0;
 
   const verifiedQuestions = questions.filter(
-    (q) => q.status === 'verified' || q.status === 'contested'
+    (q) => q.status === 'verified'
   ).length;
 
   return (verifiedQuestions / questions.length) * 100;
