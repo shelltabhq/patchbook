@@ -9,7 +9,7 @@ import {
   SearchResult,
 } from './types';
 import { trackEvent } from './analytics';
-import { saveQuestion, loadQuestion, listAllQuestions } from './storage';
+import { saveQuestion, loadQuestion, listAllQuestions, checkVersionAndSave } from './storage';
 
 export function captureAgentMetadata(): AgentMetadata {
   return {
@@ -116,6 +116,9 @@ export function postAnswer(
     throw new Error('Answer text is required');
   }
 
+  // Capture original version BEFORE mutations
+  const originalVersion = question.version;
+
   const answer: Answer = {
     id: generateId('a'),
     text: input.text,
@@ -131,7 +134,7 @@ export function postAnswer(
   question.version++;
   question.updatedAt = Math.floor(Date.now() / 1000);
 
-  saveQuestion(question);
+  checkVersionAndSave(question, originalVersion);
 
   trackEvent(
     'answer_posted',
@@ -169,6 +172,9 @@ export function verifyAnswer(
     throw new Error('Verification evidence is required. Describe what you tested and what the results were.');
   }
 
+  // Capture original version BEFORE mutations
+  const originalVersion = question.version;
+
   const signal: AnswerSignal = {
     type: 'verified',
     sessionId: input.sessionId,
@@ -181,7 +187,7 @@ export function verifyAnswer(
   question.version++;
   question.updatedAt = Math.floor(Date.now() / 1000);
 
-  saveQuestion(question);
+  checkVersionAndSave(question, originalVersion);
 
   trackEvent(
     'answer_verified',
@@ -220,6 +226,9 @@ export function rejectAnswer(
     throw new Error('Rejection reason is required. Explain why this answer doesn\'t work in your context.');
   }
 
+  // Capture original version BEFORE mutations
+  const originalVersion = question.version;
+
   const signal: AnswerSignal = {
     type: 'rejected',
     sessionId: input.sessionId,
@@ -232,7 +241,7 @@ export function rejectAnswer(
   question.version++;
   question.updatedAt = Math.floor(Date.now() / 1000);
 
-  saveQuestion(question);
+  checkVersionAndSave(question, originalVersion);
 
   trackEvent(
     'answer_rejected',
@@ -252,12 +261,31 @@ export function rejectAnswer(
 }
 
 export function getVerifiedAnswer(question: Question): Answer | null {
-  for (const answer of question.answers) {
-    if (answer.signals.some((s) => s.type === 'verified')) {
-      return answer;
-    }
+  // Filter answers that have verified signals
+  const verifiedAnswers = question.answers.filter((a) =>
+    a.signals.some((s) => s.type === 'verified')
+  );
+
+  if (verifiedAnswers.length === 0) {
+    return null;
   }
-  return null;
+
+  // Score each verified answer by: verifiedCount * 10 - rejectedCount * 5 + (recency/1000000)
+  const scoredAnswers = verifiedAnswers.map((answer) => {
+    const verifiedCount = answer.signals.filter((s) => s.type === 'verified').length;
+    const rejectedCount = answer.signals.filter((s) => s.type === 'rejected').length;
+    const recency = answer.createdAt; // Most recent answers get higher score
+
+    const score = verifiedCount * 10 - rejectedCount * 5 + recency / 1000000;
+
+    return { answer, score };
+  });
+
+  // Sort by score descending
+  scoredAnswers.sort((a, b) => b.score - a.score);
+
+  // Return highest scored answer
+  return scoredAnswers[0].answer;
 }
 
 export function getQuestion(questionId: string): Question | null {
@@ -383,6 +411,9 @@ export function postComment(
     throw new Error('Comment text is required');
   }
 
+  // Capture original version BEFORE mutations
+  const originalVersion = question.version;
+
   const comment: Comment = {
     id: generateId('cmt'),
     text,
@@ -396,7 +427,7 @@ export function postComment(
   question.version++;
   question.updatedAt = Math.floor(Date.now() / 1000);
 
-  saveQuestion(question);
+  checkVersionAndSave(question, originalVersion);
 
   trackEvent(
     'comment_posted',

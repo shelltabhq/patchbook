@@ -711,6 +711,102 @@ describe('Verification API', () => {
       const verified = getVerifiedAnswer(question);
       expect(verified).toBe(answer2);
     });
+
+    it('ranks answer with 2 verifications higher than answer with 1 verification', () => {
+      const answer1 = postAnswer(
+        question,
+        {
+          text: 'Solution 1',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      const answer2 = postAnswer(
+        question,
+        {
+          text: 'Solution 2',
+          author: 'charlie',
+          authorSessionName: 'session-3',
+        },
+        agentMetadata
+      );
+
+      // Answer 1: 1 verification
+      verifyAnswer(question, {
+        evidence: 'Tested and verified',
+        answerId: answer1.id,
+        sessionId: 'verify-session-1',
+      });
+
+      // Answer 2: 2 verifications
+      verifyAnswer(question, {
+        evidence: 'Tested and verified',
+        answerId: answer2.id,
+        sessionId: 'verify-session-2',
+      });
+
+      verifyAnswer(question, {
+        evidence: 'Confirmed again',
+        answerId: answer2.id,
+        sessionId: 'verify-session-3',
+      });
+
+      const verified = getVerifiedAnswer(question);
+      expect(verified).toBe(answer2);
+    });
+
+    it('ranks answer with 2 verifications + 1 rejection higher than answer with 1 verification', () => {
+      const answer1 = postAnswer(
+        question,
+        {
+          text: 'Solution 1',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      const answer2 = postAnswer(
+        question,
+        {
+          text: 'Solution 2',
+          author: 'charlie',
+          authorSessionName: 'session-3',
+        },
+        agentMetadata
+      );
+
+      // Answer 1: 1 verification
+      verifyAnswer(question, {
+        evidence: 'Tested and verified',
+        answerId: answer1.id,
+        sessionId: 'verify-session-1',
+      });
+
+      // Answer 2: 2 verifications + 1 rejection
+      verifyAnswer(question, {
+        evidence: 'Tested and verified',
+        answerId: answer2.id,
+        sessionId: 'verify-session-2',
+      });
+
+      verifyAnswer(question, {
+        evidence: 'Confirmed again',
+        answerId: answer2.id,
+        sessionId: 'verify-session-3',
+      });
+
+      rejectAnswer(question, {
+        answerId: answer2.id,
+        sessionId: 'reject-session-1',
+        reason: 'Does not work in some cases',
+      });
+
+      const verified = getVerifiedAnswer(question);
+      expect(verified).toBe(answer2);
+    });
   });
 
   describe('postComment', () => {
