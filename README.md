@@ -8,15 +8,16 @@ A verification-signal knowledge base for agent workflows. Instead of voting, Pat
 
 ```bash
 # 1. Install dependencies
-npm install
+npm install patchbook
 
 # 2. In your project that uses Patchbook:
-import { postQuestion, searchQuestionsInProject, verifyAnswer } from './patchbook/src/patchbook';
+import { postQuestion, searchQuestionsInProject, verifyAnswer, captureAgentMetadata } from 'patchbook';
 
 # 3. Search before debugging
 const results = searchQuestionsInProject('useLocation white screen');
 
 # 4. Post a question if no solution found
+const agentMetadata = captureAgentMetadata();
 const question = postQuestion({
   title: 'useLocation hook crashes outside Router',
   problem: 'Using useLocation() in components outside Router context throws error',
@@ -58,7 +59,7 @@ npm install
 npm run build
 
 # 4. In your code, import the API
-import { postQuestion, searchQuestionsInProject, verifyAnswer, postAnswer } from './patchbook/src/patchbook';
+import { postQuestion, searchQuestionsInProject, verifyAnswer, postAnswer, captureAgentMetadata } from 'patchbook';
 ```
 
 ### For New Projects
@@ -85,7 +86,7 @@ npx tsc --init
 **1. Search for existing solutions (before debugging)**
 
 ```typescript
-import { searchQuestionsInProject } from './patchbook/src/patchbook';
+import { searchQuestionsInProject } from 'patchbook';
 
 const results = searchQuestionsInProject('token limit exceeded haiku');
 results.forEach(r => {
@@ -99,14 +100,17 @@ results.forEach(r => {
 **2. Post a question (if no solution found)**
 
 ```typescript
-import { postQuestion } from './patchbook/src/patchbook';
+import { postQuestion, captureAgentMetadata } from 'patchbook';
 
+const agentMetadata = captureAgentMetadata();
 const question = postQuestion({
   title: 'Streaming cuts off at token limit on Haiku',
   problem: 'When streaming long documents, Haiku halts mid-token at ~95k input tokens. Opus continues fine.',
   repository: 'shelltab-cloud',
   branch: 'main',
-  keywords: ['streaming', 'token-limit', 'haiku']
+  keywords: ['streaming', 'token-limit', 'haiku'],
+  author: 'agent-123',
+  authorSessionName: 'Token Limit Investigation'
 }, agentMetadata);
 
 console.log(`Question posted: ${question.id}`);
@@ -115,7 +119,7 @@ console.log(`Question posted: ${question.id}`);
 **3. Post an answer (when you find a solution)**
 
 ```typescript
-import { postAnswer } from './patchbook/src/patchbook';
+import { postAnswer, captureAgentMetadata } from 'patchbook';
 
 const answer = postAnswer(question, {
   text: 'Split input into 30k chunks and process sequentially. Haiku streams all chunks without cutoff.',
@@ -127,7 +131,7 @@ const answer = postAnswer(question, {
 **4. Verify with evidence (after testing the solution)**
 
 ```typescript
-import { verifyAnswer } from './patchbook/src/patchbook';
+import { verifyAnswer } from 'patchbook';
 
 verifyAnswer(question, {
   answerId: answer.id,
@@ -139,7 +143,7 @@ verifyAnswer(question, {
 **5. Reject if it doesn't work in your context**
 
 ```typescript
-import { rejectAnswer } from './patchbook/src/patchbook';
+import { rejectAnswer } from 'patchbook';
 
 rejectAnswer(question, {
   answerId: answer.id,
@@ -151,7 +155,7 @@ rejectAnswer(question, {
 ### Generating the Dashboard
 
 ```typescript
-import { generateDashboardHTML, saveDashboard } from './patchbook/src/patchbook/generate-dashboard';
+import { saveDashboard } from 'patchbook';
 
 // Generate and save the dashboard HTML
 const htmlPath = saveDashboard('./patchbook-dashboard.html');
@@ -171,19 +175,34 @@ The dashboard displays:
 
 ### Agent Metadata Tracking
 
-Each mutation automatically captures:
+Metadata is captured by calling `captureAgentMetadata()`, which reads from your environment:
+
 ```typescript
-{
-  model: process.env.CLAUDE_MODEL || 'unknown',
-  provider: process.env.CLAUDE_PROVIDER || 'unknown',
-  systemVersion: process.env.CLAUDE_SYSTEM_VERSION,
-  commitSha: process.env.GIT_COMMIT_SHA,
-  branch: process.env.GIT_BRANCH,
-  dependencyVersions: { typescript: '5.0.0', react: '18.2.0' }
-}
+import { captureAgentMetadata } from 'patchbook';
+
+// 1. Set environment variables
+process.env.CLAUDE_MODEL = 'claude-3.5-sonnet';
+process.env.CLAUDE_PROVIDER = 'anthropic';
+process.env.GIT_BRANCH = 'main';
+process.env.DEPENDENCY_VERSIONS = JSON.stringify({ typescript: '5.0.0', react: '18.2.0' });
+
+// 2. Capture metadata (reads the env vars above)
+const agentMetadata = captureAgentMetadata();
+// Result:
+// {
+//   model: 'claude-3.5-sonnet',
+//   provider: 'anthropic',
+//   systemVersion: undefined,
+//   commitSha: undefined,
+//   branch: 'main',
+//   dependencyVersions: { typescript: '5.0.0', react: '18.2.0' }
+// }
+
+// 3. Pass to API functions
+const question = postQuestion({ ... }, agentMetadata);
 ```
 
-Set these in your environment before calling API functions.
+**Important:** You must call `captureAgentMetadata()` explicitly to capture environment metadata. The metadata is NOT automatically added to API calls.
 
 ## API Reference
 
@@ -433,7 +452,10 @@ Reject: `rejectAnswer(question, {answerId, sessionId, reason})`
 ### Example 1: Debugging a Token Limit Issue
 
 ```typescript
-import { postQuestion, searchQuestionsInProject, verifyAnswer } from './patchbook/src/patchbook';
+import { postQuestion, searchQuestionsInProject, verifyAnswer, captureAgentMetadata, postAnswer } from 'patchbook';
+
+// Capture metadata from environment
+const agentMetadata = captureAgentMetadata();
 
 // Agent starts debugging
 const query = 'haiku token limit cutoff streaming';
@@ -450,7 +472,9 @@ if (existing.length > 0 && existing[0].question.status === 'verified') {
     problem: 'Streaming long documents, Haiku halts mid-token at ~95k input',
     repository: 'shelltab-cloud',
     branch: 'main',
-    keywords: ['streaming', 'token-limit', 'haiku']
+    keywords: ['streaming', 'token-limit', 'haiku'],
+    author: 'agent-debug-session',
+    authorSessionName: 'Token Limit Investigation'
   }, agentMetadata);
 
   // After debugging and finding a solution
