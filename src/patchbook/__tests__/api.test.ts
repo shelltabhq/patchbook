@@ -1,0 +1,1117 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import {
+  postQuestion,
+  postAnswer,
+  verifyAnswer,
+  rejectAnswer,
+  getVerifiedAnswer,
+  postComment,
+  computeQuestionStatus,
+  captureAgentMetadata,
+} from '../api';
+import {
+  Question,
+  Answer,
+  AnswerSignal,
+  Comment,
+  AgentMetadata,
+  QuestionStatus,
+} from '../types';
+
+describe('Verification API', () => {
+  let agentMetadata: AgentMetadata;
+
+  beforeEach(() => {
+    agentMetadata = {
+      model: 'claude-3-5-sonnet',
+      provider: 'anthropic',
+      systemVersion: '2024-06',
+      commitSha: 'abc123def456',
+      branch: 'main',
+      dependencyVersions: {
+        'typescript': '5.0.0',
+        'vitest': '0.34.0',
+      },
+    };
+  });
+
+  describe('postQuestion', () => {
+    it('creates a question with open status', () => {
+      const question = postQuestion(
+        {
+          title: 'How to debug TypeScript errors?',
+          problem: 'Getting type errors in my component',
+          repository: 'myrepo',
+          branch: 'main',
+          keywords: ['typescript', 'debugging'],
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      expect(question).toBeDefined();
+      expect(question.id).toMatch(/^q_/);
+      expect(question.title).toBe('How to debug TypeScript errors?');
+      expect(question.problem).toBe('Getting type errors in my component');
+      expect(question.repository).toBe('myrepo');
+      expect(question.branch).toBe('main');
+      expect(question.keywords).toEqual(['typescript', 'debugging']);
+      expect(question.askedBy).toBe('alice');
+      expect(question.askedBySessionName).toBe('session-1');
+      expect(question.status).toBe('open');
+      expect(question.answers).toEqual([]);
+      expect(question.comments).toEqual([]);
+      expect(question.createdAt).toBeGreaterThan(0);
+      expect(question.agentMetadata).toEqual(agentMetadata);
+    });
+
+    it('creates question without keywords', () => {
+      const question = postQuestion(
+        {
+          title: 'Test question',
+          problem: 'Some problem',
+          repository: 'repo',
+          branch: 'main',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      expect(question.keywords).toEqual([]);
+    });
+
+    it('generates unique IDs', () => {
+      const q1 = postQuestion(
+        {
+          title: 'Q1',
+          problem: 'P1',
+          repository: 'repo',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      const q2 = postQuestion(
+        {
+          title: 'Q2',
+          problem: 'P2',
+          repository: 'repo',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      expect(q1.id).not.toBe(q2.id);
+    });
+  });
+
+  describe('postAnswer', () => {
+    let question: Question;
+
+    beforeEach(() => {
+      question = postQuestion(
+        {
+          title: 'Test question',
+          problem: 'Test problem',
+          repository: 'repo',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+    });
+
+    it('adds answer to question and moves status to candidate', () => {
+      const answer = postAnswer(
+        question,
+        {
+          text: 'Here is the solution',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      expect(answer).toBeDefined();
+      expect(answer.id).toMatch(/^a_/);
+      expect(answer.text).toBe('Here is the solution');
+      expect(answer.author).toBe('bob');
+      expect(answer.authorSessionName).toBe('session-2');
+      expect(answer.signals).toEqual([]);
+      expect(answer.createdAt).toBeGreaterThan(0);
+      expect(answer.agentMetadata).toEqual(agentMetadata);
+
+      expect(question.answers).toContain(answer);
+      expect(question.answers.length).toBe(1);
+      expect(question.status).toBe('candidate');
+    });
+
+    it('adds multiple answers', () => {
+      const answer1 = postAnswer(
+        question,
+        {
+          text: 'Solution 1',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      const answer2 = postAnswer(
+        question,
+        {
+          text: 'Solution 2',
+          author: 'charlie',
+          authorSessionName: 'session-3',
+        },
+        agentMetadata
+      );
+
+      expect(question.answers.length).toBe(2);
+      expect(question.answers).toContain(answer1);
+      expect(question.answers).toContain(answer2);
+    });
+
+    it('generates unique answer IDs', () => {
+      const answer1 = postAnswer(
+        question,
+        {
+          text: 'Solution 1',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      const answer2 = postAnswer(
+        question,
+        {
+          text: 'Solution 2',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      expect(answer1.id).not.toBe(answer2.id);
+    });
+  });
+
+  describe('verifyAnswer', () => {
+    let question: Question;
+    let answer: Answer;
+
+    beforeEach(() => {
+      question = postQuestion(
+        {
+          title: 'Test question',
+          problem: 'Test problem',
+          repository: 'repo',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      answer = postAnswer(
+        question,
+        {
+          text: 'Test solution',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+    });
+
+    it('adds verified signal to answer', () => {
+      const signal = verifyAnswer(question, {
+        answerId: answer.id,
+        sessionId: 'verify-session-1',
+        evidence: 'Confirmed in production',
+      });
+
+      expect(signal).toBeDefined();
+      expect(signal.type).toBe('verified');
+      expect(signal.sessionId).toBe('verify-session-1');
+      expect(signal.evidence).toBe('Confirmed in production');
+      expect(signal.createdAt).toBeGreaterThan(0);
+
+      expect(answer.signals).toContain(signal);
+      expect(answer.signals.length).toBe(1);
+    });
+
+    it('marks question as verified when answer is verified', () => {
+      verifyAnswer(question, {
+        answerId: answer.id,
+        sessionId: 'verify-session-1',
+      });
+
+      expect(question.status).toBe('verified');
+    });
+
+    it('accepts optional evidence', () => {
+      const signal1 = verifyAnswer(question, {
+        answerId: answer.id,
+        sessionId: 'verify-session-1',
+      });
+
+      expect(signal1.evidence).toBeUndefined();
+
+      const answer2 = postAnswer(
+        question,
+        {
+          text: 'Another solution',
+          author: 'charlie',
+          authorSessionName: 'session-3',
+        },
+        agentMetadata
+      );
+
+      const signal2 = verifyAnswer(question, {
+        answerId: answer2.id,
+        sessionId: 'verify-session-2',
+        evidence: 'Works in all test cases',
+      });
+
+      expect(signal2.evidence).toBe('Works in all test cases');
+    });
+
+    it('throws error when answer not found', () => {
+      expect(() => {
+        verifyAnswer(question, {
+          answerId: 'nonexistent-id',
+          sessionId: 'verify-session-1',
+        });
+      }).toThrow('Answer nonexistent-id not found');
+    });
+
+    it('allows multiple verifications on same answer', () => {
+      verifyAnswer(question, {
+        answerId: answer.id,
+        sessionId: 'verify-session-1',
+      });
+
+      verifyAnswer(question, {
+        answerId: answer.id,
+        sessionId: 'verify-session-2',
+        evidence: 'Confirmed again',
+      });
+
+      expect(answer.signals.length).toBe(2);
+      expect(answer.signals.every((s) => s.type === 'verified')).toBe(true);
+    });
+  });
+
+  describe('rejectAnswer', () => {
+    let question: Question;
+    let answer: Answer;
+
+    beforeEach(() => {
+      question = postQuestion(
+        {
+          title: 'Test question',
+          problem: 'Test problem',
+          repository: 'repo',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      answer = postAnswer(
+        question,
+        {
+          text: 'Test solution',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+    });
+
+    it('adds rejected signal with reason', () => {
+      const signal = rejectAnswer(question, {
+        answerId: answer.id,
+        sessionId: 'reject-session-1',
+        reason: 'Does not work in edge cases',
+      });
+
+      expect(signal).toBeDefined();
+      expect(signal.type).toBe('rejected');
+      expect(signal.sessionId).toBe('reject-session-1');
+      expect(signal.reason).toBe('Does not work in edge cases');
+      expect(signal.createdAt).toBeGreaterThan(0);
+
+      expect(answer.signals).toContain(signal);
+      expect(answer.signals.length).toBe(1);
+    });
+
+    it('marks question as candidate when answer is rejected', () => {
+      rejectAnswer(question, {
+        answerId: answer.id,
+        sessionId: 'reject-session-1',
+        reason: 'Not applicable',
+      });
+
+      expect(question.status).toBe('candidate');
+    });
+
+    it('throws error when answer not found', () => {
+      expect(() => {
+        rejectAnswer(question, {
+          answerId: 'nonexistent-id',
+          sessionId: 'reject-session-1',
+          reason: 'Bad answer',
+        });
+      }).toThrow('Answer nonexistent-id not found');
+    });
+
+    it('allows multiple rejections on same answer', () => {
+      rejectAnswer(question, {
+        answerId: answer.id,
+        sessionId: 'reject-session-1',
+        reason: 'Reason 1',
+      });
+
+      rejectAnswer(question, {
+        answerId: answer.id,
+        sessionId: 'reject-session-2',
+        reason: 'Reason 2',
+      });
+
+      expect(answer.signals.length).toBe(2);
+      expect(answer.signals.every((s) => s.type === 'rejected')).toBe(true);
+    });
+  });
+
+  describe('contested status', () => {
+    let question: Question;
+
+    beforeEach(() => {
+      question = postQuestion(
+        {
+          title: 'Contested question',
+          problem: 'Complex problem',
+          repository: 'repo',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+    });
+
+    it('marks question as contested when both verified and rejected exist', () => {
+      const answer1 = postAnswer(
+        question,
+        {
+          text: 'Solution A',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      const answer2 = postAnswer(
+        question,
+        {
+          text: 'Solution B',
+          author: 'charlie',
+          authorSessionName: 'session-3',
+        },
+        agentMetadata
+      );
+
+      // Verify first answer
+      verifyAnswer(question, {
+        answerId: answer1.id,
+        sessionId: 'verify-session-1',
+        evidence: 'Works',
+      });
+
+      expect(question.status).toBe('verified');
+
+      // Reject second answer
+      rejectAnswer(question, {
+        answerId: answer2.id,
+        sessionId: 'reject-session-1',
+        reason: 'Does not work',
+      });
+
+      expect(question.status).toBe('contested');
+    });
+
+    it('marks question as contested regardless of order', () => {
+      const answer1 = postAnswer(
+        question,
+        {
+          text: 'Solution A',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      const answer2 = postAnswer(
+        question,
+        {
+          text: 'Solution B',
+          author: 'charlie',
+          authorSessionName: 'session-3',
+        },
+        agentMetadata
+      );
+
+      // Reject first answer
+      rejectAnswer(question, {
+        answerId: answer1.id,
+        sessionId: 'reject-session-1',
+        reason: 'Does not work',
+      });
+
+      expect(question.status).toBe('candidate');
+
+      // Verify second answer
+      verifyAnswer(question, {
+        answerId: answer2.id,
+        sessionId: 'verify-session-1',
+        evidence: 'Works',
+      });
+
+      expect(question.status).toBe('contested');
+    });
+
+    it('stays contested with multiple verifications and rejections', () => {
+      const answer1 = postAnswer(
+        question,
+        {
+          text: 'Solution A',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      const answer2 = postAnswer(
+        question,
+        {
+          text: 'Solution B',
+          author: 'charlie',
+          authorSessionName: 'session-3',
+        },
+        agentMetadata
+      );
+
+      verifyAnswer(question, {
+        answerId: answer1.id,
+        sessionId: 'verify-session-1',
+      });
+
+      rejectAnswer(question, {
+        answerId: answer2.id,
+        sessionId: 'reject-session-1',
+        reason: 'Fails',
+      });
+
+      verifyAnswer(question, {
+        answerId: answer1.id,
+        sessionId: 'verify-session-2',
+      });
+
+      rejectAnswer(question, {
+        answerId: answer2.id,
+        sessionId: 'reject-session-2',
+        reason: 'Still fails',
+      });
+
+      expect(question.status).toBe('contested');
+    });
+  });
+
+  describe('getVerifiedAnswer', () => {
+    let question: Question;
+
+    beforeEach(() => {
+      question = postQuestion(
+        {
+          title: 'Test question',
+          problem: 'Test problem',
+          repository: 'repo',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+    });
+
+    it('returns first verified answer', () => {
+      const answer1 = postAnswer(
+        question,
+        {
+          text: 'Solution 1',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      const answer2 = postAnswer(
+        question,
+        {
+          text: 'Solution 2',
+          author: 'charlie',
+          authorSessionName: 'session-3',
+        },
+        agentMetadata
+      );
+
+      verifyAnswer(question, {
+        answerId: answer1.id,
+        sessionId: 'verify-session-1',
+      });
+
+      const verified = getVerifiedAnswer(question);
+      expect(verified).toBe(answer1);
+    });
+
+    it('returns null when no verified answers', () => {
+      postAnswer(
+        question,
+        {
+          text: 'Solution 1',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      const verified = getVerifiedAnswer(question);
+      expect(verified).toBeNull();
+    });
+
+    it('returns null when question has no answers', () => {
+      const verified = getVerifiedAnswer(question);
+      expect(verified).toBeNull();
+    });
+
+    it('returns first verified even when multiple verified', () => {
+      const answer1 = postAnswer(
+        question,
+        {
+          text: 'Solution 1',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      const answer2 = postAnswer(
+        question,
+        {
+          text: 'Solution 2',
+          author: 'charlie',
+          authorSessionName: 'session-3',
+        },
+        agentMetadata
+      );
+
+      verifyAnswer(question, {
+        answerId: answer1.id,
+        sessionId: 'verify-session-1',
+      });
+
+      verifyAnswer(question, {
+        answerId: answer2.id,
+        sessionId: 'verify-session-2',
+      });
+
+      const verified = getVerifiedAnswer(question);
+      expect(verified).toBe(answer1);
+    });
+
+    it('returns verified answer even with rejected ones present', () => {
+      const answer1 = postAnswer(
+        question,
+        {
+          text: 'Solution 1',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      const answer2 = postAnswer(
+        question,
+        {
+          text: 'Solution 2',
+          author: 'charlie',
+          authorSessionName: 'session-3',
+        },
+        agentMetadata
+      );
+
+      rejectAnswer(question, {
+        answerId: answer1.id,
+        sessionId: 'reject-session-1',
+        reason: 'Bad',
+      });
+
+      verifyAnswer(question, {
+        answerId: answer2.id,
+        sessionId: 'verify-session-1',
+      });
+
+      const verified = getVerifiedAnswer(question);
+      expect(verified).toBe(answer2);
+    });
+  });
+
+  describe('postComment', () => {
+    let question: Question;
+
+    beforeEach(() => {
+      question = postQuestion(
+        {
+          title: 'Test question',
+          problem: 'Test problem',
+          repository: 'repo',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+    });
+
+    it('adds comment separate from answers', () => {
+      const comment = postComment(
+        question,
+        'This is a helpful comment',
+        'bob',
+        'session-2',
+        agentMetadata
+      );
+
+      expect(comment).toBeDefined();
+      expect(comment.id).toMatch(/^cmt_/);
+      expect(comment.text).toBe('This is a helpful comment');
+      expect(comment.author).toBe('bob');
+      expect(comment.authorSessionName).toBe('session-2');
+      expect(comment.createdAt).toBeGreaterThan(0);
+      expect(comment.agentMetadata).toEqual(agentMetadata);
+
+      expect(question.comments).toContain(comment);
+      expect(question.answers.length).toBe(0);
+      expect(question.comments.length).toBe(1);
+    });
+
+    it('adds multiple comments', () => {
+      const comment1 = postComment(
+        question,
+        'First comment',
+        'bob',
+        'session-2',
+        agentMetadata
+      );
+
+      const comment2 = postComment(
+        question,
+        'Second comment',
+        'charlie',
+        'session-3',
+        agentMetadata
+      );
+
+      expect(question.comments.length).toBe(2);
+      expect(question.comments).toContain(comment1);
+      expect(question.comments).toContain(comment2);
+    });
+
+    it('keeps comments separate from answers', () => {
+      const answer = postAnswer(
+        question,
+        {
+          text: 'Test solution',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      const comment = postComment(
+        question,
+        'Additional context',
+        'charlie',
+        'session-3',
+        agentMetadata
+      );
+
+      expect(question.answers.length).toBe(1);
+      expect(question.comments.length).toBe(1);
+      expect(question.answers).toContain(answer);
+      expect(question.comments).toContain(comment);
+      expect(question.answers).not.toContain(comment);
+      expect(question.comments).not.toContain(answer);
+    });
+
+    it('generates unique comment IDs', () => {
+      const comment1 = postComment(
+        question,
+        'Comment 1',
+        'bob',
+        'session-2',
+        agentMetadata
+      );
+
+      const comment2 = postComment(
+        question,
+        'Comment 2',
+        'bob',
+        'session-2',
+        agentMetadata
+      );
+
+      expect(comment1.id).not.toBe(comment2.id);
+    });
+  });
+
+  describe('computeQuestionStatus', () => {
+    let question: Question;
+
+    beforeEach(() => {
+      question = postQuestion(
+        {
+          title: 'Test question',
+          problem: 'Test problem',
+          repository: 'repo',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+    });
+
+    it('returns open when no answers', () => {
+      expect(computeQuestionStatus(question)).toBe('open');
+    });
+
+    it('returns candidate when has answers but none verified or rejected', () => {
+      postAnswer(
+        question,
+        {
+          text: 'Solution',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      expect(computeQuestionStatus(question)).toBe('candidate');
+    });
+
+    it('returns verified when has verified answer', () => {
+      const answer = postAnswer(
+        question,
+        {
+          text: 'Solution',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      verifyAnswer(question, {
+        answerId: answer.id,
+        sessionId: 'verify-session-1',
+      });
+
+      expect(computeQuestionStatus(question)).toBe('verified');
+    });
+
+    it('returns candidate when has only rejected answers', () => {
+      const answer = postAnswer(
+        question,
+        {
+          text: 'Solution',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      rejectAnswer(question, {
+        answerId: answer.id,
+        sessionId: 'reject-session-1',
+        reason: 'Bad',
+      });
+
+      expect(computeQuestionStatus(question)).toBe('candidate');
+    });
+
+    it('returns contested when has both verified and rejected', () => {
+      const answer1 = postAnswer(
+        question,
+        {
+          text: 'Solution 1',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      const answer2 = postAnswer(
+        question,
+        {
+          text: 'Solution 2',
+          author: 'charlie',
+          authorSessionName: 'session-3',
+        },
+        agentMetadata
+      );
+
+      verifyAnswer(question, {
+        answerId: answer1.id,
+        sessionId: 'verify-session-1',
+      });
+
+      rejectAnswer(question, {
+        answerId: answer2.id,
+        sessionId: 'reject-session-1',
+        reason: 'Bad',
+      });
+
+      expect(computeQuestionStatus(question)).toBe('contested');
+    });
+  });
+
+  describe('captureAgentMetadata', () => {
+    it('captures metadata from environment variables', () => {
+      process.env.CLAUDE_MODEL = 'claude-3-5-sonnet';
+      process.env.CLAUDE_PROVIDER = 'anthropic';
+      process.env.CLAUDE_SYSTEM_VERSION = '2024-06';
+      process.env.GIT_COMMIT_SHA = 'abc123';
+      process.env.GIT_BRANCH = 'main';
+      process.env.DEPENDENCY_VERSIONS = JSON.stringify({
+        'typescript': '5.0.0',
+      });
+
+      const metadata = captureAgentMetadata();
+
+      expect(metadata.model).toBe('claude-3-5-sonnet');
+      expect(metadata.provider).toBe('anthropic');
+      expect(metadata.systemVersion).toBe('2024-06');
+      expect(metadata.commitSha).toBe('abc123');
+      expect(metadata.branch).toBe('main');
+      expect(metadata.dependencyVersions).toEqual({
+        'typescript': '5.0.0',
+      });
+    });
+
+    it('uses defaults when environment variables not set', () => {
+      delete process.env.CLAUDE_MODEL;
+      delete process.env.CLAUDE_PROVIDER;
+      delete process.env.CLAUDE_SYSTEM_VERSION;
+      delete process.env.GIT_COMMIT_SHA;
+      delete process.env.GIT_BRANCH;
+      delete process.env.BRANCH;
+      delete process.env.DEPENDENCY_VERSIONS;
+
+      const metadata = captureAgentMetadata();
+
+      expect(metadata.model).toBe('unknown');
+      expect(metadata.provider).toBe('unknown');
+      expect(metadata.systemVersion).toBeUndefined();
+      expect(metadata.commitSha).toBeUndefined();
+      expect(metadata.branch).toBeUndefined();
+      expect(metadata.dependencyVersions).toBeUndefined();
+    });
+  });
+
+  describe('Integration scenarios', () => {
+    it('handles complete workflow: ask -> answer -> verify -> retrieve', () => {
+      // Create question
+      const question = postQuestion(
+        {
+          title: 'How to optimize React components?',
+          problem: 'My component re-renders too often',
+          repository: 'my-app',
+          branch: 'main',
+          keywords: ['react', 'performance'],
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      expect(question.status).toBe('open');
+
+      // Add answer
+      const answer = postAnswer(
+        question,
+        {
+          text: 'Use React.memo() to prevent unnecessary re-renders',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      expect(question.status).toBe('candidate');
+
+      // Add comment
+      const comment = postComment(
+        question,
+        'This is a common performance issue in React',
+        'charlie',
+        'session-3',
+        agentMetadata
+      );
+
+      expect(question.comments.length).toBe(1);
+
+      // Verify answer
+      verifyAnswer(question, {
+        answerId: answer.id,
+        sessionId: 'verify-session-1',
+        evidence: 'Applied the fix and saw 50% reduction in re-renders',
+      });
+
+      expect(question.status).toBe('verified');
+
+      // Retrieve verified answer
+      const verified = getVerifiedAnswer(question);
+      expect(verified).toBe(answer);
+      expect(verified?.text).toContain('React.memo()');
+    });
+
+    it('handles multi-answer scenario with conflicts', () => {
+      const question = postQuestion(
+        {
+          title: 'Best way to handle state?',
+          problem: 'Confused about state management',
+          repository: 'my-app',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      const answer1 = postAnswer(
+        question,
+        {
+          text: 'Use Redux for all state',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      const answer2 = postAnswer(
+        question,
+        {
+          text: 'Use React Context API',
+          author: 'charlie',
+          authorSessionName: 'session-3',
+        },
+        agentMetadata
+      );
+
+      // Both get verified by different people
+      verifyAnswer(question, {
+        answerId: answer1.id,
+        sessionId: 'verify-session-1',
+        evidence: 'Works well for large apps',
+      });
+
+      expect(question.status).toBe('verified');
+
+      verifyAnswer(question, {
+        answerId: answer2.id,
+        sessionId: 'verify-session-2',
+        evidence: 'Works well for small to medium apps',
+      });
+
+      // Still verified (multiple verified answers)
+      expect(question.status).toBe('verified');
+
+      // But then one gets rejected
+      rejectAnswer(question, {
+        answerId: answer1.id,
+        sessionId: 'reject-session-1',
+        reason: 'Overkill for this project',
+      });
+
+      // Now contested
+      expect(question.status).toBe('contested');
+    });
+
+    it('handles status transitions correctly', () => {
+      const question = postQuestion(
+        {
+          title: 'Test transitions',
+          problem: 'Test',
+          repository: 'repo',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      expect(question.status).toBe('open');
+
+      const answer = postAnswer(
+        question,
+        {
+          text: 'Test answer',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      expect(question.status).toBe('candidate');
+
+      verifyAnswer(question, {
+        answerId: answer.id,
+        sessionId: 'verify-session-1',
+      });
+
+      expect(question.status).toBe('verified');
+
+      // Add another answer and reject it
+      const answer2 = postAnswer(
+        question,
+        {
+          text: 'Alternative answer',
+          author: 'charlie',
+          authorSessionName: 'session-3',
+        },
+        agentMetadata
+      );
+
+      expect(question.status).toBe('verified');
+
+      rejectAnswer(question, {
+        answerId: answer2.id,
+        sessionId: 'reject-session-1',
+        reason: 'Not applicable',
+      });
+
+      expect(question.status).toBe('contested');
+    });
+  });
+});
