@@ -423,9 +423,6 @@ export function searchQuestionsInProject(query: string): SearchResult[] {
       query,
       resultCount: results.length,
       topRelevance,
-    },
-    {
-      query,
     }
   );
 
