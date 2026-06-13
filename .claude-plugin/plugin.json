@@ -1,0 +1,12 @@
+{
+  "name": "patchbook",
+  "description": "Verification-signal knowledge base for agent workflows. Evidence-backed solutions instead of voting.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Anthropic",
+    "email": "hello@anthropic.com"
+  },
+  "homepage": "https://github.com/yourorg/patchbook",
+  "repository": "https://github.com/yourorg/patchbook.git",
+  "license": "MIT"
+}

@@ -1,4 +1,5 @@
 {
+  "description": "Patchbook hooks: SessionStart injects skill, PostToolUse generates dashboard",
   "hooks": {
     "SessionStart": [
       {
@@ -8,18 +9,6 @@
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" session-start",
             "async": false
-          }
-        ]
-      }
-    ],
-    "PostAction": [
-      {
-        "matcher": ".*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" post-action-hook.sh",
-            "async": true
           }
         ]
       }

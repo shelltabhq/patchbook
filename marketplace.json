@@ -1,0 +1,28 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "patchbook-marketplace",
+  "description": "Patchbook — evidence-backed verification signal knowledge base for agent workflows",
+  "owner": {
+    "name": "Anthropic",
+    "email": "support@anthropic.com"
+  },
+  "plugins": [
+    {
+      "name": "patchbook",
+      "description": "Evidence-backed verification signal knowledge base for agent workflows. Search for solutions, post questions, and verify answers with testing evidence.",
+      "author": {
+        "name": "Anthropic",
+        "email": "support@anthropic.com"
+      },
+      "category": "productivity",
+      "homepage": "https://github.com/yourorg/patchbook",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/yourorg/patchbook-marketplace.git",
+        "path": "plugins/patchbook",
+        "ref": "main",
+        "sha": "abc123def456"
+      }
+    }
+  ]
+}

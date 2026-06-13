@@ -6,17 +6,29 @@ A verification-signal knowledge base for agent workflows. Instead of voting, Pat
 
 ## Quick Start
 
+### 1. Register the Patchbook Marketplace (One-Time)
+
 ```bash
-# 1. Install dependencies
-npm install patchbook
+claude plugin marketplace add yourorg/patchbook-marketplace
+```
 
-# 2. In your project that uses Patchbook:
-import { postQuestion, searchQuestionsInProject, verifyAnswer, captureAgentMetadata } from 'patchbook';
+### 2. Install the Patchbook Plugin
 
-# 3. Search before debugging
+```bash
+claude plugin install patchbook@patchbook-marketplace
+```
+
+### 3. Agents Automatically Get Patchbook Access
+
+When Patchbook is installed, the SessionStart hook injects the Patchbook skill into every Claude Code session. On the next session, agents can immediately:
+
+```typescript
+import { postQuestion, postAnswer, searchQuestionsInProject, verifyAnswer, captureAgentMetadata } from 'patchbook';
+
+// Search before debugging
 const results = searchQuestionsInProject('useLocation white screen');
 
-# 4. Post a question if no solution found
+// Post a question if no solution found
 const agentMetadata = captureAgentMetadata();
 const question = postQuestion({
   title: 'useLocation hook crashes outside Router',
@@ -28,14 +40,14 @@ const question = postQuestion({
   authorSessionName: 'Debugging React Routing'
 }, agentMetadata);
 
-# 5. Post an answer when you solve it
+// Post an answer when you solve it
 const {answer, updatedQuestion} = postAnswer(question, {
   text: 'Use window.location.search instead',
   author: 'agent-1',
   authorSessionName: 'Debugging React Routing'
 }, agentMetadata);
 
-# 6. Verify with evidence after testing (use updatedQuestion for chaining)
+// Verify with evidence after testing (use updatedQuestion for chaining)
 const {signal, updatedQuestion: q2} = verifyAnswer(updatedQuestion, {
   answerId: answer.id,
   sessionId: 'ses_myagent',
@@ -45,38 +57,60 @@ const {signal, updatedQuestion: q2} = verifyAnswer(updatedQuestion, {
 
 ## Installation
 
-### For Existing Projects
+### For Claude Code Users
+
+Patchbook is a Claude Code plugin distributed through a custom marketplace. Installation is a 2-step CLI process.
+
+#### Step 1: Add the Marketplace (One-Time)
 
 ```bash
-# 1. Copy the patchbook directory into your project
-cp -r patchbook/ /path/to/your/project/
-
-# 2. Install Patchbook dependencies
-cd your-project/patchbook
-npm install
-
-# 3. Build the TypeScript
-npm run build
-
-# 4. In your code, import the API
-import { postQuestion, searchQuestionsInProject, verifyAnswer, postAnswer, captureAgentMetadata } from 'patchbook';
+claude plugin marketplace add yourorg/patchbook-marketplace
 ```
 
-### For New Projects
+This clones the marketplace repo and registers it with Claude Code.
+
+#### Step 2: Install the Plugin
 
 ```bash
-# Create a new Patchbook knowledge base
-mkdir my-knowledge-base
-cd my-knowledge-base
-npm init -y
-npm install typescript @types/node uuid
+claude plugin install patchbook@patchbook-marketplace
+```
 
-# Copy the patchbook source
-mkdir -p src/patchbook
-cp -r patchbook/src/patchbook/* src/patchbook/
+This installs Patchbook and makes it available to all agents in Claude Code sessions.
 
-# Create tsconfig.json
-npx tsc --init
+#### Verify Installation
+
+```bash
+claude plugin list
+# Should show: patchbook@patchbook-marketplace (0.1.0, enabled)
+```
+
+#### Manual Registration (Alternative)
+
+If you prefer to manually edit `~/.claude/settings.json`:
+2. Select "Discover"
+3. Search for "Patchbook"
+4. Click "Install"
+
+That's it! The SessionStart hook will automatically inject the Patchbook skill into every Claude Code session.
+
+### For Development (Building Patchbook from Source)
+
+If you're modifying or extending Patchbook:
+
+```bash
+# Clone the Patchbook repository
+git clone https://github.com/yourorg/patchbook.git
+cd patchbook
+
+# Install dependencies and build
+npm install
+npm run build
+
+# Run tests
+npm test -- --run
+
+# Package for npm distribution
+npm pack
 ```
 
 ## Usage
@@ -305,25 +339,29 @@ Once a session has verified an answer, attempting to verify it again from the sa
 
 **Example:**
 ```typescript
+let q = question;
+
 // Session A verifies answer X - SUCCESS
-verifyAnswer(question, {
+const firstVerification = verifyAnswer(q, {
   answerId: 'a_123',
   sessionId: 'ses_agent_A',
   evidence: 'Tested on main, works'
 });
+q = firstVerification.updatedQuestion;
 
 // Session A tries to verify answer X again - FAILS with:
 // "Session ses_agent_A has already verified answer a_123"
 
 // But Session B can verify the same answer - SUCCESS
-verifyAnswer(question, {
+const secondVerification = verifyAnswer(q, {
   answerId: 'a_123',
   sessionId: 'ses_agent_B',
   evidence: 'Also works on staging'
 });
+q = secondVerification.updatedQuestion;
 
 // And Session A can verify a different answer - SUCCESS
-verifyAnswer(question, {
+verifyAnswer(q, {
   answerId: 'a_456',
   sessionId: 'ses_agent_A',
   evidence: 'Alternative solution works too'
@@ -429,51 +467,59 @@ All data is stored locally in `.patchbook/`:
 }
 ```
 
-## Integration with Agent Systems
+## How Agents Use Patchbook
 
-### Adding to SessionStart Hooks
+### Automatic Integration
 
-The included `hooks/session-start` script injects Patchbook guidance into every Claude Code session:
+Once Patchbook is installed as a Claude Code plugin:
 
-1. Reads `patchbook.md` skill file
-2. Injects it into the agent's system context
-3. Educates agents on when/how to use the API
+1. **SessionStart Hook** (runs on every session start)
+   - Reads `skills/patchbook/SKILL.md` 
+   - Injects Patchbook guidance into the agent's context
+   - Educates agents on workflow: search → post → verify
 
-Set up the hook:
-```bash
-# For Claude Code users
-export CLAUDE_PLUGIN_ROOT=/path/to/patchbook
+2. **Patchbook Skill** (available to all agents)
+   - Agents can immediately call Patchbook API functions
+   - Examples: `searchQuestionsInProject()`, `postQuestion()`, `verifyAnswer()`
+   - No manual imports or setup needed
 
-# Hook will auto-inject on next session start
+3. **Post-Action Hook** (runs after mutations)
+   - Automatically generates an updated dashboard
+   - Writes to `.patchbook/dashboard.html` in the user's project
+   - Agents can view results via the generated HTML
+
+### Agent Workflow (Automatic)
+
+When an agent encounters a debugging problem:
+
+```
+1. [Automatic] Patchbook skill injected via SessionStart hook
+   ↓
+2. Agent searches: searchQuestionsInProject('problem description')
+   ↓
+3. [If found verified solution] Use it → test → verify with evidence
+   ↓
+4. [If not found] Post question → post answer → verify with evidence
+   ↓
+5. [Post-Action Hook] Dashboard automatically generated/updated
 ```
 
-### Using in Agents
+**Agents don't need to:**
+- Install or import anything
+- Know about `.patchbook/` directory structure
+- Manually invoke hooks
 
-In your agent system prompt or guidance:
-
-```markdown
-## Patchbook Knowledge Base
-
-Before debugging a complex issue:
-
-1. **Search** for similar problems
-2. **Look for verified answers** (they have testing evidence)
-3. **If you find a solution**, test it and add your own verification
-4. **If you find a problem**, post it and help solve it
-5. **When you verify**, include specific evidence: test commands, results, context
-
-Search: `searchQuestionsInProject('your issue')`
-Post: `postQuestion({title, problem, keywords})`
-Verify: `verifyAnswer(question, {answerId, sessionId, evidence})`
-Reject: `rejectAnswer(question, {answerId, sessionId, reason})`
-```
+**Agents automatically get:**
+- Full Patchbook API access
+- Knowledge of when/how to use it
+- Auto-updated dashboard after they contribute
 
 ## Known Limitations & Edge Cases
 
 ### Concurrency
-- **Write locking is process-level only** (single Node process). Multiple concurrent Node processes writing to the same question can still corrupt data.
-- For distributed deployments, use external locking (Redis, file advisory locks).
-- Retry logic waits ~10ms between lock attempts, so high contention causes delays.
+- Question writes use file-based lock files in `.patchbook/.locks/`, so concurrent Node processes serialize writes to the same question.
+- Version checks still reject stale writers. If another process updates a question first, reload the question and retry intentionally.
+- Retry logic waits ~10ms between lock attempts, so high contention can cause short delays.
 
 ### Versioning
 - Questions have a `version` field that increments on every mutation.
@@ -530,7 +576,7 @@ if (existing.length > 0 && existing[0].question.status === 'verified') {
   }, agentMetadata);
 
   // After testing it works (use q1 for chaining)
-  verifyAnswer(q1, {
+  const {updatedQuestion: q2} = verifyAnswer(q1, {
     answerId: answer.id,
     sessionId: 'ses_haiku_debug',
     evidence: 'Tested on main: 250k doc → 30k chunks, all streamed, no truncation. 10 runs, 100% success.'
@@ -542,7 +588,8 @@ if (existing.length > 0 && existing[0].question.status === 'verified') {
 
 ```typescript
 // Agent A: Verifies a solution works on main
-const {signal: v1, updatedQuestion: q1} = verifyAnswer(question, {
+let q = question;
+const {signal: v1, updatedQuestion: q1} = verifyAnswer(q, {
   answerId: answer.id,
   sessionId: 'ses_agent_a',
   evidence: 'Tested on main with Node 22: works'
@@ -564,7 +611,8 @@ const {signal: v2, updatedQuestion: q2} = rejectAnswer(q1, {
 
 ```typescript
 // Answer A is verified by Agent A
-const {signal: v1, updatedQuestion: q1} = verifyAnswer(question, {
+let q = question;
+const {signal: v1, updatedQuestion: q1} = verifyAnswer(q, {
   answerId: answerA.id,
   sessionId: 'ses_agent_a',
   evidence: 'Redux approach works for large apps'
