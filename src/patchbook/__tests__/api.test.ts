@@ -1,4 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 import {
   postQuestion,
   postAnswer,
@@ -20,8 +23,13 @@ import {
 
 describe('Verification API', () => {
   let agentMetadata: AgentMetadata;
+  let tempDir: string;
 
   beforeEach(() => {
+    // Create a temporary directory for test storage
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'patchbook-test-'));
+    process.env.PATCHBOOK_ROOT = tempDir;
+
     agentMetadata = {
       model: 'claude-3-5-sonnet',
       provider: 'anthropic',
@@ -33,6 +41,14 @@ describe('Verification API', () => {
         'vitest': '0.34.0',
       },
     };
+  });
+
+  afterEach(() => {
+    // Clean up temporary directory after each test
+    if (tempDir && fs.existsSync(tempDir)) {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+    delete process.env.PATCHBOOK_ROOT;
   });
 
   describe('postQuestion', () => {

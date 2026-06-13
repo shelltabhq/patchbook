@@ -2,9 +2,17 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Question } from './types';
 
-const PATCHBOOK_ROOT = path.join(process.cwd(), '.patchbook');
-const QUESTIONS_DIR = path.join(PATCHBOOK_ROOT, 'questions');
-const ANALYTICS_DIR = path.join(PATCHBOOK_ROOT, 'analytics');
+function getPatchbookRoot(): string {
+  return process.env.PATCHBOOK_ROOT || path.join(process.cwd(), '.patchbook');
+}
+
+function getQuestionsDir(): string {
+  return path.join(getPatchbookRoot(), 'questions');
+}
+
+function getAnalyticsDir(): string {
+  return path.join(getPatchbookRoot(), 'analytics');
+}
 
 // Simple in-memory lock tracking (process-level, not distributed)
 const writeLocks = new Map<string, { until: number }>();
@@ -36,13 +44,13 @@ function ensureDir(dir: string): void {
 }
 
 export function initializeStorage(): void {
-  ensureDir(PATCHBOOK_ROOT);
-  ensureDir(QUESTIONS_DIR);
-  ensureDir(ANALYTICS_DIR);
+  ensureDir(getPatchbookRoot());
+  ensureDir(getQuestionsDir());
+  ensureDir(getAnalyticsDir());
 }
 
 export function getQuestionPath(questionId: string): string {
-  return path.join(QUESTIONS_DIR, `${questionId}.json`);
+  return path.join(getQuestionsDir(), `${questionId}.json`);
 }
 
 export function saveQuestion(question: Question): void {
@@ -93,7 +101,7 @@ export function loadQuestion(questionId: string): Question | null {
 
 export function listAllQuestions(): Question[] {
   initializeStorage();
-  const files = fs.readdirSync(QUESTIONS_DIR).filter(f => f.endsWith('.json'));
+  const files = fs.readdirSync(getQuestionsDir()).filter(f => f.endsWith('.json'));
   const questions: Question[] = [];
 
   for (const file of files) {
@@ -116,7 +124,7 @@ export function deleteQuestion(questionId: string): void {
 
 export function saveAnalyticsEvent(eventId: string, eventData: unknown): void {
   initializeStorage();
-  const filePath = path.join(ANALYTICS_DIR, `${eventId}.json`);
+  const filePath = path.join(getAnalyticsDir(), `${eventId}.json`);
 
   const tempPath = `${filePath}.tmp`;
   fs.writeFileSync(tempPath, JSON.stringify(eventData, null, 2), 'utf-8');
@@ -125,12 +133,12 @@ export function saveAnalyticsEvent(eventId: string, eventData: unknown): void {
 
 export function listAnalyticsEvents(): unknown[] {
   initializeStorage();
-  const files = fs.readdirSync(ANALYTICS_DIR).filter(f => f.endsWith('.json'));
+  const files = fs.readdirSync(getAnalyticsDir()).filter(f => f.endsWith('.json'));
   const events: unknown[] = [];
 
   for (const file of files) {
     try {
-      const data = fs.readFileSync(path.join(ANALYTICS_DIR, file), 'utf-8');
+      const data = fs.readFileSync(path.join(getAnalyticsDir(), file), 'utf-8');
       events.push(JSON.parse(data));
     } catch (error) {
       console.error(`Error reading analytics event ${file}:`, error);
