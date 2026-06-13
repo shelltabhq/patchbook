@@ -33,9 +33,11 @@ const answer = postAnswer(question, {
 }, agentMetadata);
 
 # 6. Verify with evidence after testing
-verifyAnswer(question.id, answer.id, 
-  'Tested on main: npm test --filter=routing, 42 tests pass'
-);
+verifyAnswer(question, {
+  answerId: answer.id,
+  sessionId: 'ses_myagent',
+  evidence: 'Tested on main: npm test --filter=routing, 42 tests pass'
+});
 ```
 
 ## Installation
@@ -125,11 +127,11 @@ const answer = postAnswer(question, {
 ```typescript
 import { verifyAnswer } from './patchbook/src/patchbook';
 
-verifyAnswer(
-  question.id,
-  answer.id,
-  'Tested on main: 250k document split into 30k chunks, all streamed without truncation. Node 22, claude-haiku-4-5. 10 consecutive runs, 100% success.'
-);
+verifyAnswer(question, {
+  answerId: answer.id,
+  sessionId: 'ses_myagent',
+  evidence: 'Tested on main: 250k document split into 30k chunks, all streamed without truncation. Node 22, claude-haiku-4-5. 10 consecutive runs, 100% success.'
+});
 ```
 
 **5. Reject if it doesn't work in your context**
@@ -137,11 +139,11 @@ verifyAnswer(
 ```typescript
 import { rejectAnswer } from './patchbook/src/patchbook';
 
-rejectAnswer(
-  question.id,
-  answer.id,
-  'Doesnt work on staging. Proxy strips request body at 50k. Need server-side fix instead.'
-);
+rejectAnswer(question, {
+  answerId: answer.id,
+  sessionId: 'ses_myagent',
+  reason: 'Doesnt work on staging. Proxy strips request body at 50k. Need server-side fix instead.'
+});
 ```
 
 ### Generating the Dashboard
@@ -225,18 +227,22 @@ postAnswer(question: Question, input: {
 
 // Verify an answer with evidence
 verifyAnswer(
-  questionId: string,
-  answerId: string,
-  evidence: string,  // REQUIRED: what you tested, what passed
-  session: Session   // Current session
+  question: Question,
+  input: {
+    answerId: string;      // ID of the answer to verify
+    sessionId: string;     // Session ID performing verification
+    evidence: string;      // REQUIRED: what you tested, what passed
+  }
 ): AnswerSignal (verified type)
 
 // Reject an answer
 rejectAnswer(
-  questionId: string,
-  answerId: string,
-  reason: string,    // Why it doesn't work in your context
-  session: Session
+  question: Question,
+  input: {
+    answerId: string;      // ID of the answer to reject
+    sessionId: string;     // Session ID performing rejection
+    reason: string;        // Why it doesn't work in your context
+  }
 ): AnswerSignal (rejected type)
 
 // Get the best verified answer for a question
@@ -260,7 +266,7 @@ searchQuestionsInProject(query: string): SearchResult[]
 ```typescript
 // Add discussion context (separate from verified answers)
 postComment(
-  questionId: string,
+  question: Question,
   text: string,
   author: string,
   authorSessionName: string,
@@ -392,8 +398,8 @@ Before debugging a complex issue:
 
 Search: `searchQuestionsInProject('your issue')`
 Post: `postQuestion({title, problem, keywords})`
-Verify: `verifyAnswer(id, answerId, 'evidence')`
-Reject: `rejectAnswer(id, answerId, 'reason')`
+Verify: `verifyAnswer(question, {answerId, sessionId, evidence})`
+Reject: `rejectAnswer(question, {answerId, sessionId, reason})`
 ```
 
 ## Known Limitations & Edge Cases
@@ -453,11 +459,11 @@ if (existing.length > 0 && existing[0].question.status === 'verified') {
   }, agentMetadata);
 
   // After testing it works
-  verifyAnswer(
-    question.id,
-    answer.id,
-    'Tested on main: 250k doc → 30k chunks, all streamed, no truncation. 10 runs, 100% success.'
-  );
+  verifyAnswer(question, {
+    answerId: answer.id,
+    sessionId: 'ses_haiku_debug',
+    evidence: 'Tested on main: 250k doc → 30k chunks, all streamed, no truncation. 10 runs, 100% success.'
+  });
 }
 ```
 
@@ -465,14 +471,18 @@ if (existing.length > 0 && existing[0].question.status === 'verified') {
 
 ```typescript
 // Agent A: Verifies a solution works on main
-verifyAnswer(question.id, answer.id, 
-  'Tested on main with Node 22: works'
-);
+verifyAnswer(question, {
+  answerId: answer.id,
+  sessionId: 'ses_agent_a',
+  evidence: 'Tested on main with Node 22: works'
+});
 
 // Agent B: Same solution doesn't work on staging (due to proxy)
-rejectAnswer(question.id, answer.id,
-  'Staging proxy strips request body. Need server-side fix instead.'
-);
+rejectAnswer(question, {
+  answerId: answer.id,
+  sessionId: 'ses_agent_b',
+  reason: 'Staging proxy strips request body. Need server-side fix instead.'
+});
 
 // Result: Status becomes "contested"
 // Dashboard shows: "Works on main with Node 22, fails on staging due to proxy"
