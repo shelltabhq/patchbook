@@ -193,6 +193,115 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /**
+   * Render the detail view for a question with answers and comments
+   * @param {Object} question - The question data
+   * @param {Array} answers - Array of answer objects
+   * @param {Array} comments - Array of comment objects
+   */
+  function renderDetailView(question, answers = [], comments = []) {
+    const detailLeft = document.querySelector('.detail-left');
+    const detailRight = document.querySelector('.detail-right');
+
+    if (!detailLeft || !detailRight) return;
+
+    // Determine question status based on answers
+    const hasVerified = answers.some(a => a.signals?.some(s => s.type === 'verified'));
+    const hasRejected = answers.some(a => a.signals?.some(s => s.type === 'rejected'));
+    const status = hasVerified ? 'verified' : hasRejected ? 'rejected' : 'open';
+
+    // Update title
+    const titleElement = detailLeft.querySelector('.detail-title');
+    if (titleElement) {
+      titleElement.textContent = escapeHtml(question.title || '');
+    }
+
+    // Update problem section
+    const problemElement = detailLeft.querySelector('.problem-text');
+    if (problemElement) {
+      problemElement.textContent = escapeHtml(question.problem || '');
+    }
+
+    // Update status badge
+    updateStatusBadge(status);
+
+    // Populate answers sorted by verification
+    populateAnswers(answers);
+
+    // Update right sidebar metadata
+    const metaGroup = detailRight.querySelector('.meta-group');
+    if (metaGroup) {
+      const items = metaGroup.querySelectorAll('.meta-item');
+      if (items.length >= 4) {
+        // Update "Asked By"
+        const askedByValue = items[0].querySelector('.meta-value');
+        if (askedByValue) {
+          askedByValue.innerHTML = `<a href="#" class="meta-link">${escapeHtml(question.askedBy || 'Unknown')}</a>`;
+        }
+
+        // Update "Status"
+        const statusValue = items[1].querySelector('.meta-value');
+        if (statusValue) {
+          statusValue.textContent = status === 'verified' ? 'Verified' : status === 'rejected' ? 'Rejected' : 'Open';
+        }
+
+        // Update "Repository"
+        const repoValue = items[2].querySelector('.meta-value');
+        if (repoValue) {
+          repoValue.textContent = escapeHtml(question.repository || 'Unknown');
+        }
+
+        // Update "Created"
+        const createdValue = items[3].querySelector('.meta-value');
+        if (createdValue) {
+          const date = new Date(question.createdAt * 1000);
+          createdValue.textContent = date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        }
+      }
+    }
+
+    // Render comments
+    renderComments(comments, detailRight);
+  }
+
+  /**
+   * Render comments in the detail right sidebar
+   * @param {Array} comments - Array of comment objects
+   * @param {Element} detailRight - The detail right container
+   */
+  function renderComments(comments, detailRight) {
+    const commentsContainer = detailRight.querySelector('.comments');
+    if (!commentsContainer) return;
+
+    commentsContainer.innerHTML = '';
+
+    if (!comments || comments.length === 0) {
+      commentsContainer.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); padding: 8px;">No comments yet.</div>';
+      return;
+    }
+
+    comments.forEach(comment => {
+      const commentElement = document.createElement('div');
+      commentElement.className = 'comment';
+
+      // Add success class if it's a verification comment
+      if (comment.type === 'verified') {
+        commentElement.classList.add('success');
+      }
+
+      const authorHTML = `
+        <div class="comment-author">
+          <a href="#" class="comment-link">${escapeHtml(comment.author || 'Unknown')}</a>
+        </div>
+      `;
+
+      const textHTML = `<div class="comment-text">${escapeHtml(comment.text || '')}</div>`;
+
+      commentElement.innerHTML = authorHTML + textHTML;
+      commentsContainer.appendChild(commentElement);
+    });
+  }
+
+  /**
    * Filter cards based on sidebar filters
    */
   function setupFilters() {
@@ -268,5 +377,8 @@ document.addEventListener('DOMContentLoaded', () => {
     updateStatusBadge,
     renderAnswer,
     renderSignal,
+    renderDetailView,
+    renderComments,
+    escapeHtml,
   };
 });
