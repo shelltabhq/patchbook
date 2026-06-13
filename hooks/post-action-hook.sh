@@ -6,10 +6,38 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+USER_PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-${PWD}}"
+
+if [ -z "${PATCHBOOK_ROOT:-}" ]; then
+  PATCHBOOK_DATA_ROOT="${USER_PROJECT_ROOT}/.patchbook"
+elif [[ "${PATCHBOOK_ROOT}" = /* ]]; then
+  PATCHBOOK_DATA_ROOT="${PATCHBOOK_ROOT}"
+else
+  PATCHBOOK_DATA_ROOT="${USER_PROJECT_ROOT}/${PATCHBOOK_ROOT}"
+fi
 
 # Build the project to ensure dist/ is up-to-date
-npm run build --prefix "${PROJECT_ROOT}" >/dev/null 2>&1 || true
+npm run build --prefix "${PLUGIN_ROOT}" >/dev/null 2>&1 || true
 
-# Generate the dashboard from real .patchbook/ data
-node -e "const { saveDashboard } = require('${PROJECT_ROOT}/dist/patchbook/generate-dashboard'); try { const output = saveDashboard('${PROJECT_ROOT}/web/patchbook-dashboard.html'); console.log('Dashboard generated:', output); } catch (err) { console.error('Dashboard generation failed:', err.message); exit(1); }"
+# Generate the dashboard from real project .patchbook/ data into the data directory, not the package
+mkdir -p "${PATCHBOOK_DATA_ROOT}"
+export PATCHBOOK_PLUGIN_ROOT="${PLUGIN_ROOT}"
+export PATCHBOOK_ROOT="${PATCHBOOK_DATA_ROOT}"
+export PATCHBOOK_DASHBOARD_PATH="${PATCHBOOK_DATA_ROOT}/dashboard.html"
+
+node <<'NODE'
+const path = require('path');
+
+try {
+  const { saveDashboard } = require(path.join(
+    process.env.PATCHBOOK_PLUGIN_ROOT,
+    'dist/patchbook/generate-dashboard'
+  ));
+  const output = saveDashboard(process.env.PATCHBOOK_DASHBOARD_PATH);
+  console.log('Dashboard generated at:', output);
+} catch (err) {
+  console.error('Dashboard generation failed:', err instanceof Error ? err.message : String(err));
+  process.exit(1);
+}
+NODE
