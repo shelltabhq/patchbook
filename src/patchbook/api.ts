@@ -123,7 +123,7 @@ export function postAnswer(
   question: Question,
   input: PostAnswerInput,
   agentMetadata: AgentMetadata
-): Answer {
+): { answer: Answer; updatedQuestion: Question } {
   if (!input.text?.trim()) {
     throw new Error('Answer text is required');
   }
@@ -175,8 +175,13 @@ export function postAnswer(
     }
   );
 
-  // 5. Return only the newly created/modified object, NOT the question
-  return answer;
+  // 5. Load the saved question and return both answer and updated question
+  const saved = loadQuestion(question.id);
+  if (!saved) {
+    throw new Error(`Failed to load saved question ${question.id}`);
+  }
+
+  return { answer, updatedQuestion: saved };
 }
 
 export interface VerifyAnswerInput {
@@ -188,7 +193,7 @@ export interface VerifyAnswerInput {
 export function verifyAnswer(
   question: Question,
   input: VerifyAnswerInput
-): Extract<AnswerSignal, { type: 'verified' }> {
+): { signal: Extract<AnswerSignal, { type: 'verified' }>; updatedQuestion: Question } {
   if (!input.evidence?.trim()) {
     throw new Error('Verification evidence is required. Describe what you tested and what the results were.');
   }
@@ -248,8 +253,13 @@ export function verifyAnswer(
     }
   );
 
-  // 5. Return only the newly created/modified object, NOT the question
-  return signal;
+  // 5. Load the saved question and return both signal and updated question
+  const saved = loadQuestion(question.id);
+  if (!saved) {
+    throw new Error(`Failed to load saved question ${question.id}`);
+  }
+
+  return { signal, updatedQuestion: saved };
 }
 
 export interface RejectAnswerInput {
@@ -261,7 +271,7 @@ export interface RejectAnswerInput {
 export function rejectAnswer(
   question: Question,
   input: RejectAnswerInput
-): AnswerSignal {
+): { signal: AnswerSignal; updatedQuestion: Question } {
   if (!input.reason?.trim()) {
     throw new Error('Rejection reason is required. Explain why this answer doesn\'t work in your context.');
   }
@@ -320,8 +330,13 @@ export function rejectAnswer(
     }
   );
 
-  // 5. Return only the newly created/modified object, NOT the question
-  return signal;
+  // 5. Load the saved question and return both signal and updated question
+  const saved = loadQuestion(question.id);
+  if (!saved) {
+    throw new Error(`Failed to load saved question ${question.id}`);
+  }
+
+  return { signal, updatedQuestion: saved };
 }
 
 export function getVerifiedAnswer(question: Question): Answer | null {
@@ -535,7 +550,7 @@ export function postComment(
   author: string,
   authorSessionName: string,
   agentMetadata: AgentMetadata
-): Comment {
+): { comment: Comment; updatedQuestion: Question } {
   if (!text?.trim()) {
     throw new Error('Comment text is required');
   }
@@ -584,6 +599,11 @@ export function postComment(
     }
   );
 
-  // 5. Return only the newly created/modified object, NOT the question
-  return comment;
+  // 5. Load the saved question and return both comment and updated question
+  const saved = loadQuestion(question.id);
+  if (!saved) {
+    throw new Error(`Failed to load saved question ${question.id}`);
+  }
+
+  return { comment, updatedQuestion: saved };
 }
