@@ -1073,6 +1073,18 @@ describe('Verification API', () => {
       expect(metadata.branch).toBeUndefined();
       expect(metadata.dependencyVersions).toBeUndefined();
     });
+
+    it('handles malformed DEPENDENCY_VERSIONS gracefully', () => {
+      process.env.CLAUDE_MODEL = 'claude-3-5-sonnet';
+      process.env.CLAUDE_PROVIDER = 'anthropic';
+      process.env.DEPENDENCY_VERSIONS = 'not valid json {]';
+
+      const metadata = captureAgentMetadata();
+
+      expect(metadata.model).toBe('claude-3-5-sonnet');
+      expect(metadata.provider).toBe('anthropic');
+      expect(metadata.dependencyVersions).toBeUndefined();
+    });
   });
 
   describe('Integration scenarios', () => {

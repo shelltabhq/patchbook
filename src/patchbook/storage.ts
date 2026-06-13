@@ -84,6 +84,50 @@ export function saveQuestion(question: Question): void {
   }
 }
 
+export function checkVersionAndSave(question: Question, expectedVersion: number): void {
+  initializeStorage();
+  const filePath = getQuestionPath(question.id);
+  const lockKey = `question:${question.id}`;
+
+  // Acquire lock to prevent concurrent writes
+  const maxAttempts = 10;
+  let attempts = 0;
+  while (!acquireLock(lockKey) && attempts < maxAttempts) {
+    // Wait a small amount and retry
+    const start = Date.now();
+    while (Date.now() - start < 10) {
+      // Busy-wait 10ms
+    }
+    attempts++;
+  }
+
+  if (!isLocked(lockKey)) {
+    throw new Error(`Failed to acquire lock for question ${question.id} after ${maxAttempts} attempts`);
+  }
+
+  try {
+    // Load current version from disk
+    const currentQuestion = loadQuestion(question.id);
+    if (!currentQuestion) {
+      throw new Error(`Question ${question.id} not found on disk`);
+    }
+
+    // Check if version matches expected
+    if (currentQuestion.version !== expectedVersion) {
+      throw new Error(
+        `Version mismatch for question ${question.id}: expected ${expectedVersion}, but found ${currentQuestion.version}. Your changes conflict with another update.`
+      );
+    }
+
+    // Atomic write: write to temp file, then rename
+    const tempPath = `${filePath}.tmp`;
+    fs.writeFileSync(tempPath, JSON.stringify(question, null, 2), 'utf-8');
+    fs.renameSync(tempPath, filePath);
+  } finally {
+    releaseLock(lockKey);
+  }
+}
+
 export function loadQuestion(questionId: string): Question | null {
   const filePath = getQuestionPath(questionId);
   if (!fs.existsSync(filePath)) {

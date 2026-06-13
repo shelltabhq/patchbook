@@ -12,15 +12,27 @@ import { trackEvent } from './analytics';
 import { saveQuestion, loadQuestion, listAllQuestions, checkVersionAndSave } from './storage';
 
 export function captureAgentMetadata(): AgentMetadata {
+  let dependencyVersions: Record<string, string> | undefined;
+
+  if (process.env.DEPENDENCY_VERSIONS) {
+    try {
+      dependencyVersions = JSON.parse(process.env.DEPENDENCY_VERSIONS);
+    } catch (error) {
+      console.warn(
+        'Failed to parse DEPENDENCY_VERSIONS env var:',
+        error instanceof Error ? error.message : String(error)
+      );
+      dependencyVersions = undefined;
+    }
+  }
+
   return {
     model: process.env.CLAUDE_MODEL || 'unknown',
     provider: process.env.CLAUDE_PROVIDER || 'unknown',
     systemVersion: process.env.CLAUDE_SYSTEM_VERSION,
     commitSha: process.env.GIT_COMMIT_SHA,
     branch: process.env.GIT_BRANCH || process.env.BRANCH,
-    dependencyVersions: process.env.DEPENDENCY_VERSIONS
-      ? JSON.parse(process.env.DEPENDENCY_VERSIONS)
-      : undefined,
+    dependencyVersions,
   };
 }
 
