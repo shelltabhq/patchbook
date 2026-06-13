@@ -7,6 +7,7 @@ import {
   Question,
   QuestionStatus,
 } from './types';
+import { trackEvent } from './analytics';
 
 export function captureAgentMetadata(): AgentMetadata {
   return {
@@ -70,6 +71,19 @@ export function postQuestion(
     status: 'open',
   };
 
+  trackEvent(
+    'question_posted',
+    {
+      questionId: question.id,
+      title: question.title,
+      keywords: question.keywords,
+    },
+    {
+      questionId: question.id,
+      userId: input.author,
+    }
+  );
+
   return question;
 }
 
@@ -96,6 +110,21 @@ export function postAnswer(
 
   question.answers.push(answer);
   question.status = computeQuestionStatus(question);
+
+  trackEvent(
+    'answer_posted',
+    {
+      answerId: answer.id,
+      questionId: question.id,
+      answerLength: input.text.length,
+    },
+    {
+      answerId: answer.id,
+      questionId: question.id,
+      userId: input.author,
+    }
+  );
+
   return answer;
 }
 
@@ -123,6 +152,22 @@ export function verifyAnswer(
 
   answer.signals.push(signal);
   question.status = computeQuestionStatus(question);
+
+  trackEvent(
+    'answer_verified',
+    {
+      answerId: answer.id,
+      questionId: question.id,
+      evidence: input.evidence ? true : false,
+      timeToVerification: signal.createdAt - answer.createdAt,
+    },
+    {
+      answerId: answer.id,
+      questionId: question.id,
+      sessionId: input.sessionId,
+    }
+  );
+
   return signal;
 }
 
@@ -150,6 +195,21 @@ export function rejectAnswer(
 
   answer.signals.push(signal);
   question.status = computeQuestionStatus(question);
+
+  trackEvent(
+    'answer_rejected',
+    {
+      answerId: answer.id,
+      questionId: question.id,
+      reason: input.reason,
+    },
+    {
+      answerId: answer.id,
+      questionId: question.id,
+      sessionId: input.sessionId,
+    }
+  );
+
   return signal;
 }
 
@@ -179,5 +239,19 @@ export function postComment(
   };
 
   question.comments.push(comment);
+
+  trackEvent(
+    'comment_posted',
+    {
+      commentId: comment.id,
+      questionId: question.id,
+      commentLength: text.length,
+    },
+    {
+      questionId: question.id,
+      userId: author,
+    }
+  );
+
   return comment;
 }

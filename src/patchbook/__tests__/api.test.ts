@@ -242,7 +242,7 @@ describe('Verification API', () => {
       expect(signal).toBeDefined();
       expect(signal.type).toBe('verified');
       expect(signal.sessionId).toBe('verify-session-1');
-      expect(signal.evidence).toBe('Confirmed in production');
+      expect((signal as any).evidence).toBe('Confirmed in production');
       expect(signal.createdAt).toBeGreaterThan(0);
 
       expect(answer.signals).toContain(signal);
@@ -264,7 +264,7 @@ describe('Verification API', () => {
         sessionId: 'verify-session-1',
       });
 
-      expect(signal1.evidence).toBeUndefined();
+      expect((signal1 as any).evidence).toBeUndefined();
 
       const answer2 = postAnswer(
         question,
@@ -282,7 +282,7 @@ describe('Verification API', () => {
         evidence: 'Works in all test cases',
       });
 
-      expect(signal2.evidence).toBe('Works in all test cases');
+      expect((signal2 as any).evidence).toBe('Works in all test cases');
     });
 
     it('throws error when answer not found', () => {
@@ -349,7 +349,7 @@ describe('Verification API', () => {
       expect(signal).toBeDefined();
       expect(signal.type).toBe('rejected');
       expect(signal.sessionId).toBe('reject-session-1');
-      expect(signal.reason).toBe('Does not work in edge cases');
+      expect((signal as any).reason).toBe('Does not work in edge cases');
       expect(signal.createdAt).toBeGreaterThan(0);
 
       expect(answer.signals).toContain(signal);
