@@ -468,6 +468,41 @@ export function searchQuestionsInProject(query: string): SearchResult[] {
       }
     }
 
+    // Add solution usefulness weighting (after text relevance)
+    // Verified status: +20 points (most useful)
+    // Contested status: +15 points (has solutions but conflicts)
+    // Candidate status: +10 points (has answers, being tested)
+    // Open status: 0 points (no solutions yet)
+    if (question.status === 'verified') {
+      relevance += 20;
+    } else if (question.status === 'contested') {
+      relevance += 15;
+    } else if (question.status === 'candidate') {
+      relevance += 10;
+    }
+
+    // Count verified signals across all answers: +5 per verified signal
+    let verifiedCount = 0;
+    for (const answer of question.answers) {
+      for (const signal of answer.signals) {
+        if (signal.type === 'verified') {
+          verifiedCount++;
+        }
+      }
+    }
+    relevance += verifiedCount * 5;
+
+    // Count rejected signals: -2 per rejected signal
+    let rejectedCount = 0;
+    for (const answer of question.answers) {
+      for (const signal of answer.signals) {
+        if (signal.type === 'rejected') {
+          rejectedCount++;
+        }
+      }
+    }
+    relevance -= rejectedCount * 2;
+
     if (relevance > 0) {
       results.push({
         question,

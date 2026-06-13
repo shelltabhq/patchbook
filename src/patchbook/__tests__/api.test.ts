@@ -1864,5 +1864,478 @@ describe('Verification API', () => {
       expect(results[1].question.id).toBe(q2.id);
       expect(results[0].relevance).toBeGreaterThan(results[1].relevance);
     });
+
+    it('ranks verified status questions higher than open status questions', () => {
+      const openQuestion = postQuestion(
+        {
+          title: 'How to debug React',
+          problem: 'Debugging help',
+          repository: 'myapp',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      const verifiedQuestion = postQuestion(
+        {
+          title: 'Debugging techniques',
+          problem: 'Different debugging approach',
+          repository: 'myapp',
+          branch: 'main',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      // Add and verify an answer to the second question
+      const answer = postAnswer(
+        verifiedQuestion,
+        {
+          text: 'Use browser DevTools for debugging',
+          author: 'charlie',
+          authorSessionName: 'session-3',
+        },
+        agentMetadata
+      );
+
+      let currentQuestion = getQuestion(verifiedQuestion.id)!;
+      verifyAnswer(currentQuestion, {
+        answerId: answer.id,
+        sessionId: 'verify-session-1',
+        evidence: 'Works perfectly',
+      });
+
+      // Search for "debug" - should rank verified question higher despite text similarity
+      const results = searchQuestionsInProject('debug');
+      expect(results.length).toBe(2);
+
+      const verifiedResult = results.find(r => r.question.id === verifiedQuestion.id);
+      const openResult = results.find(r => r.question.id === openQuestion.id);
+
+      expect(verifiedResult).toBeDefined();
+      expect(openResult).toBeDefined();
+      // Verified question should rank higher due to +20 status bonus
+      expect(verifiedResult!.relevance).toBeGreaterThan(openResult!.relevance);
+    });
+
+    it('ranks candidate status questions higher than open status', () => {
+      const openQuestion = postQuestion(
+        {
+          title: 'React state management',
+          problem: 'State management problem',
+          repository: 'myapp',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      const candidateQuestion = postQuestion(
+        {
+          title: 'Managing React state',
+          problem: 'Different state issue',
+          repository: 'myapp',
+          branch: 'main',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      // Add an answer to move it to candidate status (no verification needed)
+      postAnswer(
+        candidateQuestion,
+        {
+          text: 'Use useState hook',
+          author: 'charlie',
+          authorSessionName: 'session-3',
+        },
+        agentMetadata
+      );
+
+      const results = searchQuestionsInProject('state');
+      expect(results.length).toBe(2);
+
+      const candidateResult = results.find(r => r.question.id === candidateQuestion.id);
+      const openResult = results.find(r => r.question.id === openQuestion.id);
+
+      expect(candidateResult).toBeDefined();
+      expect(openResult).toBeDefined();
+      // Candidate should rank higher due to +10 status bonus
+      expect(candidateResult!.relevance).toBeGreaterThan(openResult!.relevance);
+    });
+
+    it('ranks contested status questions higher than candidate status', () => {
+      const candidateQuestion = postQuestion(
+        {
+          title: 'How to optimize performance',
+          problem: 'Optimization help needed',
+          repository: 'myapp',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      const contestedQuestion = postQuestion(
+        {
+          title: 'Performance tuning tips',
+          problem: 'Different performance issue',
+          repository: 'myapp',
+          branch: 'main',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      // Candidate: just an answer
+      postAnswer(
+        candidateQuestion,
+        {
+          text: 'Optimize bundle size',
+          author: 'dave',
+          authorSessionName: 'session-4',
+        },
+        agentMetadata
+      );
+
+      // Contested: verified + rejected answers
+      const answer1 = postAnswer(
+        contestedQuestion,
+        {
+          text: 'Use code splitting',
+          author: 'charlie',
+          authorSessionName: 'session-3',
+        },
+        agentMetadata
+      );
+
+      let currentQuestion = getQuestion(contestedQuestion.id)!;
+
+      const answer2 = postAnswer(
+        currentQuestion,
+        {
+          text: 'Minimize CSS',
+          author: 'eve',
+          authorSessionName: 'session-5',
+        },
+        agentMetadata
+      );
+
+      currentQuestion = getQuestion(contestedQuestion.id)!;
+
+      verifyAnswer(currentQuestion, {
+        answerId: answer1.id,
+        sessionId: 'verify-session-1',
+        evidence: 'Works in our app',
+      });
+
+      currentQuestion = getQuestion(contestedQuestion.id)!;
+
+      rejectAnswer(currentQuestion, {
+        answerId: answer2.id,
+        sessionId: 'reject-session-1',
+        reason: 'Not applicable here',
+      });
+
+      const results = searchQuestionsInProject('performance');
+      expect(results.length).toBe(2);
+
+      const contestedResult = results.find(r => r.question.id === contestedQuestion.id);
+      const candidateResult = results.find(r => r.question.id === candidateQuestion.id);
+
+      expect(contestedResult).toBeDefined();
+      expect(candidateResult).toBeDefined();
+      // Contested (+15) should rank higher than candidate (+10)
+      expect(contestedResult!.relevance).toBeGreaterThan(candidateResult!.relevance);
+    });
+
+    it('adds +5 bonus per verified signal across answers', () => {
+      const singleVerifyQuestion = postQuestion(
+        {
+          title: 'Testing best practices',
+          problem: 'Testing problem',
+          repository: 'myapp',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      const multiVerifyQuestion = postQuestion(
+        {
+          title: 'Best testing practices',
+          problem: 'Different testing issue',
+          repository: 'myapp',
+          branch: 'main',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      // Single verify: one verified signal
+      const answer1 = postAnswer(
+        singleVerifyQuestion,
+        {
+          text: 'Use vitest',
+          author: 'charlie',
+          authorSessionName: 'session-3',
+        },
+        agentMetadata
+      );
+
+      let q1 = getQuestion(singleVerifyQuestion.id)!;
+      verifyAnswer(q1, {
+        answerId: answer1.id,
+        sessionId: 'verify-session-1',
+        evidence: 'Works great',
+      });
+
+      // Multi verify: three verified signals total
+      const answer2 = postAnswer(
+        multiVerifyQuestion,
+        {
+          text: 'Use jest',
+          author: 'dave',
+          authorSessionName: 'session-4',
+        },
+        agentMetadata
+      );
+
+      let q2 = getQuestion(multiVerifyQuestion.id)!;
+
+      const answer3 = postAnswer(
+        q2,
+        {
+          text: 'Use mocha',
+          author: 'eve',
+          authorSessionName: 'session-5',
+        },
+        agentMetadata
+      );
+
+      q2 = getQuestion(multiVerifyQuestion.id)!;
+
+      verifyAnswer(q2, {
+        answerId: answer2.id,
+        sessionId: 'verify-session-2',
+        evidence: 'Good choice',
+      });
+
+      q2 = getQuestion(multiVerifyQuestion.id)!;
+
+      verifyAnswer(q2, {
+        answerId: answer3.id,
+        sessionId: 'verify-session-3',
+        evidence: 'Also works',
+      });
+
+      q2 = getQuestion(multiVerifyQuestion.id)!;
+
+      verifyAnswer(q2, {
+        answerId: answer3.id,
+        sessionId: 'verify-session-4',
+        evidence: 'Double verified',
+      });
+
+      const results = searchQuestionsInProject('testing');
+      expect(results.length).toBe(2);
+
+      const singleResult = results.find(r => r.question.id === singleVerifyQuestion.id);
+      const multiResult = results.find(r => r.question.id === multiVerifyQuestion.id);
+
+      expect(singleResult).toBeDefined();
+      expect(multiResult).toBeDefined();
+      // Multi should rank higher: both are verified status (+20), but multi has 3 verified signals (+15) vs single's 1 (+5)
+      expect(multiResult!.relevance).toBeGreaterThan(singleResult!.relevance);
+    });
+
+    it('subtracts -2 penalty per rejected signal', () => {
+      const noRejectQuestion = postQuestion(
+        {
+          title: 'Array methods in JavaScript',
+          problem: 'Need array help',
+          repository: 'myapp',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      const rejectedQuestion = postQuestion(
+        {
+          title: 'JavaScript array techniques',
+          problem: 'Different array issue',
+          repository: 'myapp',
+          branch: 'main',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      // No reject: one verified, no rejections
+      const answer1 = postAnswer(
+        noRejectQuestion,
+        {
+          text: 'Use map()',
+          author: 'charlie',
+          authorSessionName: 'session-3',
+        },
+        agentMetadata
+      );
+
+      let q1 = getQuestion(noRejectQuestion.id)!;
+      verifyAnswer(q1, {
+        answerId: answer1.id,
+        sessionId: 'verify-session-1',
+        evidence: 'Perfect',
+      });
+
+      // Contested: one verified + 2 rejections
+      const answer2 = postAnswer(
+        rejectedQuestion,
+        {
+          text: 'Use filter()',
+          author: 'dave',
+          authorSessionName: 'session-4',
+        },
+        agentMetadata
+      );
+
+      let q2 = getQuestion(rejectedQuestion.id)!;
+
+      const answer3 = postAnswer(
+        q2,
+        {
+          text: 'Use reduce()',
+          author: 'eve',
+          authorSessionName: 'session-5',
+        },
+        agentMetadata
+      );
+
+      q2 = getQuestion(rejectedQuestion.id)!;
+
+      verifyAnswer(q2, {
+        answerId: answer2.id,
+        sessionId: 'verify-session-2',
+        evidence: 'Works',
+      });
+
+      q2 = getQuestion(rejectedQuestion.id)!;
+
+      rejectAnswer(q2, {
+        answerId: answer3.id,
+        sessionId: 'reject-session-1',
+        reason: 'Too complex',
+      });
+
+      q2 = getQuestion(rejectedQuestion.id)!;
+
+      rejectAnswer(q2, {
+        answerId: answer3.id,
+        sessionId: 'reject-session-2',
+        reason: 'Not efficient',
+      });
+
+      const results = searchQuestionsInProject('array');
+      expect(results.length).toBe(2);
+
+      const noRejectResult = results.find(r => r.question.id === noRejectQuestion.id);
+      const rejectedResult = results.find(r => r.question.id === rejectedQuestion.id);
+
+      expect(noRejectResult).toBeDefined();
+      expect(rejectedResult).toBeDefined();
+      // Both are contested (+15), but noReject has 1 verified (+5) vs rejected's 1 verified (+5) - 2 rejected (-4) = +1
+      // So noReject should be higher
+      expect(noRejectResult!.relevance).toBeGreaterThan(rejectedResult!.relevance);
+    });
+
+    it('combines status bonus with verified/rejected signal bonuses', () => {
+      const unverifiedQuestion = postQuestion(
+        {
+          title: 'How to implement caching',
+          problem: 'Caching implementation',
+          repository: 'myapp',
+          branch: 'main',
+          author: 'alice',
+          authorSessionName: 'session-1',
+        },
+        agentMetadata
+      );
+
+      const highlyVerifiedQuestion = postQuestion(
+        {
+          title: 'Caching strategies explained',
+          problem: 'Understanding different caching approaches',
+          repository: 'myapp',
+          branch: 'main',
+          author: 'bob',
+          authorSessionName: 'session-2',
+        },
+        agentMetadata
+      );
+
+      // Unverified: candidate status (+10), no verified signals
+      const unverAnswer = postAnswer(
+        unverifiedQuestion,
+        {
+          text: 'Use redis',
+          author: 'charlie',
+          authorSessionName: 'session-3',
+        },
+        agentMetadata
+      );
+
+      // Highly verified: verified status (+20), multiple verified signals (+5 each = 10 total for 2)
+      const answer1 = postAnswer(
+        highlyVerifiedQuestion,
+        {
+          text: 'Use memcached',
+          author: 'dave',
+          authorSessionName: 'session-4',
+        },
+        agentMetadata
+      );
+
+      let q2 = getQuestion(highlyVerifiedQuestion.id)!;
+
+      verifyAnswer(q2, {
+        answerId: answer1.id,
+        sessionId: 'verify-session-1',
+        evidence: 'Tested in prod',
+      });
+
+      q2 = getQuestion(highlyVerifiedQuestion.id)!;
+
+      verifyAnswer(q2, {
+        answerId: answer1.id,
+        sessionId: 'verify-session-2',
+        evidence: 'Confirmed by team',
+      });
+
+      const results = searchQuestionsInProject('caching');
+      expect(results.length).toBe(2);
+
+      const unverifiedResult = results.find(r => r.question.id === unverifiedQuestion.id);
+      const highlyVerifiedResult = results.find(r => r.question.id === highlyVerifiedQuestion.id);
+
+      expect(unverifiedResult).toBeDefined();
+      expect(highlyVerifiedResult).toBeDefined();
+      // Highly verified: +20 (status) + 10 (2 verified signals) = 30 bonus
+      // Unverified: +10 (status) + 0 (no verified) = 10 bonus
+      // So highly verified should rank significantly higher
+      expect(highlyVerifiedResult!.relevance).toBeGreaterThan(unverifiedResult!.relevance);
+    });
   });
 });
