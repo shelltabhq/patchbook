@@ -9,7 +9,7 @@ A verification-signal knowledge base for agent workflows. Instead of voting, Pat
 ### 1. Register the Patchbook Marketplace (One-Time)
 
 ```bash
-claude plugin marketplace add yourorg/patchbook-marketplace
+claude plugin marketplace add shelltabhq/patchbook-marketplace
 ```
 
 ### 2. Install the Patchbook Plugin

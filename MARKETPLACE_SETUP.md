@@ -141,7 +141,7 @@ Users use the **`claude` CLI** to register the marketplace and install the plugi
 ### Step 1: Add the Marketplace
 
 ```bash
-claude plugin marketplace add yourorg/patchbook-marketplace
+claude plugin marketplace add shelltabhq/patchbook-marketplace
 ```
 
 This command:

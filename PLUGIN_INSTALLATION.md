@@ -8,7 +8,7 @@ This document explains how users install and use Patchbook as a Claude Code plug
 
 ```bash
 # Step 1: Register the marketplace (one-time)
-claude plugin marketplace add yourorg/patchbook-marketplace
+claude plugin marketplace add shelltabhq/patchbook-marketplace
 
 # Step 2: Install the plugin
 claude plugin install patchbook@patchbook-marketplace
