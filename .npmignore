@@ -1,0 +1,6 @@
+src/
+**/*.test.ts
+**/*.test.js
+**/*.test.d.ts
+dist/**/*.test.*
+docs/tokens-overflow*
