@@ -1,0 +1,92 @@
+{
+  "id": "q_d46d9e2e1f5d4a36",
+  "title": "Contested question",
+  "problem": "Complex problem",
+  "repository": "repo",
+  "branch": "main",
+  "keywords": [],
+  "askedBy": "alice",
+  "askedBySessionName": "session-1",
+  "agentMetadata": {
+    "model": "claude-3-5-sonnet",
+    "provider": "anthropic",
+    "systemVersion": "2024-06",
+    "commitSha": "abc123def456",
+    "branch": "main",
+    "dependencyVersions": {
+      "typescript": "5.0.0",
+      "vitest": "0.34.0"
+    }
+  },
+  "createdAt": 1781337659,
+  "updatedAt": 1781337659,
+  "version": 7,
+  "answers": [
+    {
+      "id": "a_572e2fec51ac4a32",
+      "text": "Solution A",
+      "author": "bob",
+      "authorSessionName": "session-2",
+      "agentMetadata": {
+        "model": "claude-3-5-sonnet",
+        "provider": "anthropic",
+        "systemVersion": "2024-06",
+        "commitSha": "abc123def456",
+        "branch": "main",
+        "dependencyVersions": {
+          "typescript": "5.0.0",
+          "vitest": "0.34.0"
+        }
+      },
+      "createdAt": 1781337659,
+      "signals": [
+        {
+          "type": "verified",
+          "sessionId": "verify-session-1",
+          "evidence": "Tested and verified",
+          "createdAt": 1781337659
+        },
+        {
+          "type": "verified",
+          "sessionId": "verify-session-2",
+          "evidence": "Tested and verified",
+          "createdAt": 1781337659
+        }
+      ]
+    },
+    {
+      "id": "a_9d062dcfa51b4a95",
+      "text": "Solution B",
+      "author": "charlie",
+      "authorSessionName": "session-3",
+      "agentMetadata": {
+        "model": "claude-3-5-sonnet",
+        "provider": "anthropic",
+        "systemVersion": "2024-06",
+        "commitSha": "abc123def456",
+        "branch": "main",
+        "dependencyVersions": {
+          "typescript": "5.0.0",
+          "vitest": "0.34.0"
+        }
+      },
+      "createdAt": 1781337659,
+      "signals": [
+        {
+          "type": "rejected",
+          "sessionId": "reject-session-1",
+          "reason": "Fails",
+          "createdAt": 1781337659
+        },
+        {
+          "type": "rejected",
+          "sessionId": "reject-session-2",
+          "reason": "Still fails",
+          "createdAt": 1781337659
+        }
+      ]
+    }
+  ],
+  "comments": [],
+  "status": "contested"
+}

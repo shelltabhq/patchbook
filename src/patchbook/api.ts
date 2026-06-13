@@ -284,6 +284,20 @@ export function getUnansweredQuestions(): Question[] {
   return getQuestionsByStatus('open');
 }
 
+export interface Session {
+  id: string;
+  name: string;
+  repository: string;
+}
+
+export function getOrCreateSession(id: string, name: string, repository: string): Session {
+  return {
+    id,
+    name,
+    repository,
+  };
+}
+
 export function searchQuestionsInProject(query: string): SearchResult[] {
   const normalizedQuery = query.toLowerCase();
   const queryTerms = normalizedQuery.split(/\s+/).filter(t => t.length > 0);
