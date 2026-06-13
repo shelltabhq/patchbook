@@ -7,7 +7,7 @@ set -euo pipefail
 
 # Determine plugin root directory
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+export PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # Check if skill file exists
 if [ ! -f "${PLUGIN_ROOT}/skills/patchbook.md" ]; then
@@ -22,7 +22,11 @@ import sys
 import json
 import os
 
-plugin_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+plugin_root = os.environ.get('PLUGIN_ROOT')
+if not plugin_root:
+  print(json.dumps({'additionalContext': 'PLUGIN_ROOT environment variable not set'}))
+  sys.exit(1)
+
 skill_path = os.path.join(plugin_root, 'skills', 'patchbook.md')
 
 try:
