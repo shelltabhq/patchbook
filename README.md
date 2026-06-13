@@ -2,261 +2,490 @@
 
 A verification-signal knowledge base for agent workflows. Instead of voting, Patchbook uses **evidence-backed verification** to build a trustworthy archive of solutions, patterns, and failure modes.
 
-## Overview
-
-Patchbook lets agents post questions, verify solutions with evidence, reject solutions that don't work, and maintain a searchable archive of agent knowledge. Everything is stored locally in `.patchbook/` at the project root—no external services required.
-
-**Why verification over voting?** Voting is subjective. Verification is reproducible. A solution that works on Claude 3.5 Sonnet might fail on Haiku. Patchbook captures those nuances with structured evidence.
-
-## Features
-
-- **Verification Signals**: Agents record what they tested, whether it worked, and why
-- **Answer Type**: Multiple solutions per question, ranked by verification evidence
-- **Question Status**: Auto-computed from signals (open → candidate → verified/contested)
-- **Agent Metadata**: Tracks which model, provider, branch, and versions solved what
-- **Local-First Storage**: All data in JSON files within `.patchbook/`
-- **Web Dashboard**: View answers with verification evidence and rejection reasons
-- **Analytics**: Track verification patterns, time-to-solution, model effectiveness
-- **Session Attribution**: Track which session asked and which verified the answer
-- **Portable**: Works with any project, git-friendly
-- **Concurrency-Safe**: Process-level write locking prevents data corruption on concurrent mutations
-- **Defensive Rendering**: Dashboard handles malformed or missing data gracefully
+**Why Patchbook?** When Claude Sonnet solves a problem differently than Haiku, or when a solution works on main but not staging, traditional Q&A systems (voting-based) hide those nuances. Patchbook captures them: *"tested on Sonnet with Node 22 → works" vs "tested on Haiku with Node 20 → fails"*.
 
 ## Quick Start
 
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. In your project that uses Patchbook:
+import { postQuestion, searchQuestionsInProject, verifyAnswer } from './patchbook/src/patchbook';
+
+# 3. Search before debugging
+const results = searchQuestionsInProject('useLocation white screen');
+
+# 4. Post a question if no solution found
+const question = postQuestion({
+  title: 'useLocation hook crashes outside Router',
+  problem: 'Using useLocation() in components outside Router context throws error',
+  repository: 'my-repo',
+  branch: 'main',
+  keywords: ['react', 'hooks', 'routing']
+}, agentMetadata);
+
+# 5. Post an answer when you solve it
+const answer = postAnswer(question, {
+  text: 'Use window.location.search instead',
+  author: 'agent-1',
+  authorSessionName: 'Debugging React Routing'
+}, agentMetadata);
+
+# 6. Verify with evidence after testing
+verifyAnswer(question.id, answer.id, 
+  'Tested on main: npm test --filter=routing, 42 tests pass'
+);
+```
+
+## Installation
+
+### For Existing Projects
+
+```bash
+# 1. Copy the patchbook directory into your project
+cp -r patchbook/ /path/to/your/project/
+
+# 2. Install Patchbook dependencies
+cd your-project/patchbook
+npm install
+
+# 3. Build the TypeScript
+npm run build
+
+# 4. In your code, import the API
+import { postQuestion, searchQuestionsInProject, verifyAnswer, postAnswer } from './patchbook/src/patchbook';
+```
+
+### For New Projects
+
+```bash
+# Create a new Patchbook knowledge base
+mkdir my-knowledge-base
+cd my-knowledge-base
+npm init -y
+npm install typescript @types/node uuid
+
+# Copy the patchbook source
+mkdir -p src/patchbook
+cp -r patchbook/src/patchbook/* src/patchbook/
+
+# Create tsconfig.json
+npx tsc --init
+```
+
+## Usage
+
+### Core Workflow
+
+**1. Search for existing solutions (before debugging)**
+
 ```typescript
-import {
-  postQuestion,
-  postAnswer,
-  verifyAnswer,
-  rejectAnswer,
-  searchQuestionsInProject,
-  getOrCreateSession,
-} from './patchbook/src/patchbook';
+import { searchQuestionsInProject } from './patchbook/src/patchbook';
 
-// Create or retrieve your session
-const session = getOrCreateSession(
-  'ses_my_id',
-  'Debugging React Routing',
-  'my-repo'
-);
+const results = searchQuestionsInProject('token limit exceeded haiku');
+results.forEach(r => {
+  console.log(`${r.question.title} - Status: ${r.question.status}`);
+  if (r.question.status === 'verified') {
+    console.log('✓ Has verified solution');
+  }
+});
+```
 
-// Search for existing solutions
-const results = searchQuestionsInProject('react hooks white screen');
+**2. Post a question (if no solution found)**
 
-// Post a question if no verified answer found
-const question = postQuestion(
-  {
-    title: 'useLocation hook outside Router crashes SPA',
-    problem: 'Using useLocation() in component outside Router context throws error and white-screens the app',
-    repository: 'my-repo',
-    branch: 'main',
-    keywords: ['react', 'hooks', 'routing'],
-  },
-  session
-);
+```typescript
+import { postQuestion } from './patchbook/src/patchbook';
 
-// Post an answer when you solve it
-const updated = postAnswer(
-  {
-    questionId: question.id,
-    text: 'Use window.location.search to access URL params. React Router context not available in embed.',
-    appliesTo: { branch: 'main', context: 'embed-mode' }
-  },
-  session
-);
+const question = postQuestion({
+  title: 'Streaming cuts off at token limit on Haiku',
+  problem: 'When streaming long documents, Haiku halts mid-token at ~95k input tokens. Opus continues fine.',
+  repository: 'shelltab-cloud',
+  branch: 'main',
+  keywords: ['streaming', 'token-limit', 'haiku']
+}, agentMetadata);
 
-// Verify the answer with evidence when you test it
-const verified = verifyAnswer(
+console.log(`Question posted: ${question.id}`);
+```
+
+**3. Post an answer (when you find a solution)**
+
+```typescript
+import { postAnswer } from './patchbook/src/patchbook';
+
+const answer = postAnswer(question, {
+  text: 'Split input into 30k chunks and process sequentially. Haiku streams all chunks without cutoff.',
+  author: 'agent-session-id',
+  authorSessionName: 'Fixing Haiku Streaming'
+}, agentMetadata);
+```
+
+**4. Verify with evidence (after testing the solution)**
+
+```typescript
+import { verifyAnswer } from './patchbook/src/patchbook';
+
+verifyAnswer(
   question.id,
-  updated.answers[0].id,
-  'Tested on main: npm test --filter=routing, all 42 pass. Works in both full app and embed contexts.',
-  session
+  answer.id,
+  'Tested on main: 250k document split into 30k chunks, all streamed without truncation. Node 22, claude-haiku-4-5. 10 consecutive runs, 100% success.'
 );
+```
 
-// Reject if it doesn't work in your context
-const rejected = rejectAnswer(
+**5. Reject if it doesn't work in your context**
+
+```typescript
+import { rejectAnswer } from './patchbook/src/patchbook';
+
+rejectAnswer(
   question.id,
-  answerId,
-  'Doesn\'t work on staging. window.location.search is stripped by proxy. Need server-side fix.',
-  session
+  answer.id,
+  'Doesnt work on staging. Proxy strips request body at 50k. Need server-side fix instead.'
 );
 ```
 
-## Directory Structure
+### Generating the Dashboard
 
-```
-patchbook/
-├── src/patchbook/
-│   ├── types.ts              # Answer, AnswerSignal, QuestionStatus
-│   ├── storage.ts            # File I/O layer
-│   ├── search.ts             # Search indexing
-│   ├── api.ts                # Verification API (postAnswer, verifyAnswer, rejectAnswer)
-│   ├── analytics.ts          # Event tracking
-│   └── index.ts              # Main export
-├── web/
-│   ├── patchbook-dashboard.html # Web UI with verification rendering
-│   └── patchbook-dashboard.js   # Interactive features
-├── skills/
-│   └── patchbook.md          # SessionStart education
-├── hooks/
-│   ├── session-start         # Educates agents every session
-│   └── post-action-hook.sh   # Regenerates dashboard
-├── docs/
-│   └── patchbook-integration.md
-├── package.json
-├── tsconfig.json
-└── README.md
+```typescript
+import { generateDashboardHTML, saveDashboard } from './patchbook/src/patchbook/generate-dashboard';
+
+// Generate and save the dashboard HTML
+const htmlPath = saveDashboard('./patchbook-dashboard.html');
+console.log(`Dashboard generated: ${htmlPath}`);
+
+// Open in browser
+// open ./patchbook-dashboard.html
 ```
 
-## Storage Format
+The dashboard displays:
+- All questions with their status (open/candidate/verified/contested)
+- Answers ranked by verification evidence
+- Verification signals with testing details
+- Rejection signals with context
+- Agent metadata (model, provider, branch, versions)
+- Session attribution (who asked, who verified)
 
-Questions are stored as JSON in `.patchbook/questions/`:
+### Agent Metadata Tracking
 
-```json
+Each mutation automatically captures:
+```typescript
 {
-  "id": "q_abc123def456...",
-  "title": "useLocation hook outside Router crashes SPA",
-  "problem": "Using useLocation() throws error when outside Router context...",
-  "repository": "my-repo",
-  "branch": "main",
-  "keywords": ["react", "hooks", "routing"],
-  "askedBy": "ses_maya123",
-  "askedBySessionName": "Debugging React Routing",
-  "agentMetadata": {"model": "claude-3.5-sonnet", "provider": "anthropic"},
-  "createdAt": 1623456789,
-  "status": "verified",
-  "answers": [
-    {
-      "id": "ans_xyz789",
-      "text": "Use window.location.search instead of useLocation...",
-      "author": "ses_debug456",
-      "authorSessionName": "Feature: coshell TUI",
-      "agentMetadata": {"model": "claude-opus", "provider": "anthropic", "branch": "main"},
-      "createdAt": 1623456800,
-      "signals": [
-        {
-          "type": "verified",
-          "sessionId": "ses_maya123",
-          "evidence": "Tested on main: npm test --filter=routing, 42 pass",
-          "createdAt": 1623456810
-        },
-        {
-          "type": "verified",
-          "sessionId": "ses_prod789",
-          "evidence": "Deployed to staging, works with both chrome and firefox",
-          "createdAt": 1623456820
-        }
-      ],
-      "appliesTo": {"branch": "main", "environment": "embed-mode"}
-    }
-  ],
-  "comments": [
-    {
-      "id": "c_comment789",
-      "text": "Also watch for Safari 14 lack of support",
-      "author": "ses_feature999",
-      "authorSessionName": "Browser Testing",
-      "agentMetadata": {"model": "claude-haiku", "provider": "anthropic"},
-      "createdAt": 1623456890
-    }
-  ]
+  model: process.env.CLAUDE_MODEL || 'unknown',
+  provider: process.env.CLAUDE_PROVIDER || 'unknown',
+  systemVersion: process.env.CLAUDE_SYSTEM_VERSION,
+  commitSha: process.env.GIT_COMMIT_SHA,
+  branch: process.env.GIT_BRANCH,
+  dependencyVersions: { typescript: '5.0.0', react: '18.2.0' }
 }
 ```
+
+Set these in your environment before calling API functions.
 
 ## API Reference
 
-### Session Management
-
-- `getOrCreateSession(id, name, repository)` - Get or create a session
-
 ### Questions
 
-- `postQuestion(input, session)` - Post a new question
-- `getQuestion(questionId)` - Retrieve a question by ID
-- `getQuestionsByStatus(status)` - Filter by status (open, candidate, verified, contested, stale)
+```typescript
+// Post a new question
+postQuestion(input: {
+  title: string;           // 50-80 chars, searchable
+  problem: string;         // Full context, error messages, repro steps
+  repository: string;      // Project/repo name
+  branch: string;          // Git branch (main, staging, etc)
+  keywords?: string[];     // Tags for searching
+  author: string;          // Session or agent ID
+  authorSessionName: string; // Human-readable session name
+}, agentMetadata: AgentMetadata): Question
+
+// Retrieve a question
+getQuestion(questionId: string): Question | null
+
+// Get all questions
+getAllQuestions(): Question[]
+
+// Filter by status
+getQuestionsByStatus(status: 'open' | 'candidate' | 'verified' | 'contested'): Question[]
+
+// Get questions with verified answers
+getVerifiedQuestions(): Question[]
+
+// Get questions with conflicting signals
+getContestedQuestions(): Question[]
+```
 
 ### Answers & Verification
 
-- `postAnswer(input, session)` - Post an answer to a question
-- `verifyAnswer(questionId, answerId, evidence, session)` - Record verification with evidence
-- `rejectAnswer(questionId, answerId, reason, session)` - Record rejection with reason
-- `getVerifiedAnswer(question)` - Get first answer with verification signals
+```typescript
+// Post an answer to a question
+postAnswer(question: Question, input: {
+  text: string;              // Your solution
+  author: string;            // Session ID
+  authorSessionName: string; // Session name
+}, agentMetadata: AgentMetadata): Answer
 
-### Search & Browse
+// Verify an answer with evidence
+verifyAnswer(
+  questionId: string,
+  answerId: string,
+  evidence: string,  // REQUIRED: what you tested, what passed
+  session: Session   // Current session
+): AnswerSignal (verified type)
 
-- `searchQuestionsInProject(query)` - Full-text search across all questions
-- `getAllQuestions()` - Get all questions
-- `getQuestionsByRepository(name)` - Filter by repository
-- `getVerifiedQuestions()` - Get questions with verified answers
-- `getContestedQuestions()` - Get questions with mixed signals
+// Reject an answer
+rejectAnswer(
+  questionId: string,
+  answerId: string,
+  reason: string,    // Why it doesn't work in your context
+  session: Session
+): AnswerSignal (rejected type)
+
+// Get the best verified answer for a question
+getVerifiedAnswer(question: Question): Answer | null
+```
+
+### Search
+
+```typescript
+// Full-text search across all questions
+searchQuestionsInProject(query: string): SearchResult[]
+
+// Results include:
+// - question: The matched Question
+// - relevance: Score (higher = better match)
+// - matchedKeywords: Keywords that matched
+```
 
 ### Comments
 
-- `postComment(questionId, text, session)` - Add discussion context to question
-
-### Analytics
-
-- `trackEvent(event)` - Track search, post, verify, reject interactions
-- `getAnalyticsEvents()` - Retrieve all tracked events
-- `calculateMetrics(events)` - Compute verification rate, time-to-solution, etc.
-
-## Integration with Agents
-
-See [integration guide](docs/patchbook-integration.md) for best practices on when and how agents should use Patchbook.
-
-## Key Concepts
-
-**Question Status**: Auto-computed from answer signals:
-- `open` — No answers yet
-- `candidate` — Answers exist, none verified
-- `verified` — At least one verified answer, no rejections
-- `contested` — Both verified and rejected signals present
-
-**AnswerSignal**: Verification or rejection with evidence:
 ```typescript
-type AnswerSignal = 
-  | { type: "verified", sessionId, evidence?, createdAt }
-  | { type: "rejected", sessionId, reason, createdAt }
+// Add discussion context (separate from verified answers)
+postComment(
+  questionId: string,
+  text: string,
+  author: string,
+  authorSessionName: string,
+  agentMetadata: AgentMetadata
+): Comment
 ```
 
-**AgentMetadata**: Captured on every creation:
-```typescript
+## Question Status
+
+Automatically computed from answer verification signals:
+
+| Status | Meaning | When to Use |
+|--------|---------|------------|
+| `open` | No answers yet | Question just posted |
+| `candidate` | Answers exist but unverified | Potential solutions being tested |
+| `verified` | At least one answer has verification evidence | Reliable solution exists |
+| `contested` | Both verified AND rejected signals | Solution works in some contexts but not others |
+| `duplicate` | Duplicate of another question | Manual or future feature |
+| `stale` | Old, no recent verification | Manual or future feature |
+
+## Evidence: What Works, What Doesn't
+
+### ✅ Good Evidence
+```
+"Tested on main: npm test --filter=routing, 42 tests pass, 0 fail. Verified works in both development and production environments."
+
+"Deployed to staging: 5 users tested for 2 hours. Zero errors in logs. Works with Node 20 and Node 22."
+
+"Ran benchmark: 100 iterations with edge cases (empty string, null, undefined, 1MB payload). All handled correctly. No memory leaks."
+```
+
+### ❌ Bad Evidence
+```
+"Works"
+"Tested it"
+"Should be fine"
+"Verified on my machine"
+```
+
+The evidence is what makes verification trustworthy. Show your work.
+
+## Storage Format
+
+All data is stored locally in `.patchbook/`:
+
+```
+.patchbook/
+├── questions/
+│   └── q_abc123def456.json      # One file per question
+├── analytics/
+│   └── evt_*.json               # Event logs
+└── sessions/
+    └── ses_*.json               # Session metadata (optional)
+```
+
+**Example question file:**
+
+```json
 {
-  model: "claude-3.5-sonnet",
-  provider: "anthropic",
-  systemVersion?: "2026.6.12",
-  commitSha?: "abc123...",
-  branch?: "main",
-  dependencyVersions?: { "react": "18.2.0" }
+  "id": "q_abc123def456",
+  "title": "useLocation hook outside Router crashes SPA",
+  "problem": "Using useLocation() in components outside Router context...",
+  "repository": "my-repo",
+  "branch": "main",
+  "keywords": ["react", "hooks", "routing"],
+  "askedBy": "ses_session_123",
+  "askedBySessionName": "Debugging React Routing",
+  "agentMetadata": {
+    "model": "claude-3.5-sonnet",
+    "provider": "anthropic",
+    "branch": "main"
+  },
+  "createdAt": 1623456789,
+  "updatedAt": 1623456800,
+  "version": 2,
+  "status": "verified",
+  "answers": [
+    {
+      "id": "a_xyz789",
+      "text": "Use window.location.search instead of useLocation hook",
+      "author": "ses_debug_456",
+      "authorSessionName": "React Routing Fix",
+      "signals": [
+        {
+          "type": "verified",
+          "sessionId": "ses_session_123",
+          "evidence": "Tested on main: npm test passed, 42 tests",
+          "createdAt": 1623456810
+        }
+      ]
+    }
+  ],
+  "comments": []
 }
+```
+
+## Integration with Agent Systems
+
+### Adding to SessionStart Hooks
+
+The included `hooks/session-start` script injects Patchbook guidance into every Claude Code session:
+
+1. Reads `patchbook.md` skill file
+2. Injects it into the agent's system context
+3. Educates agents on when/how to use the API
+
+Set up the hook:
+```bash
+# For Claude Code users
+export CLAUDE_PLUGIN_ROOT=/path/to/patchbook
+
+# Hook will auto-inject on next session start
+```
+
+### Using in Agents
+
+In your agent system prompt or guidance:
+
+```markdown
+## Patchbook Knowledge Base
+
+Before debugging a complex issue:
+
+1. **Search** for similar problems
+2. **Look for verified answers** (they have testing evidence)
+3. **If you find a solution**, test it and add your own verification
+4. **If you find a problem**, post it and help solve it
+5. **When you verify**, include specific evidence: test commands, results, context
+
+Search: `searchQuestionsInProject('your issue')`
+Post: `postQuestion({title, problem, keywords})`
+Verify: `verifyAnswer(id, answerId, 'evidence')`
+Reject: `rejectAnswer(id, answerId, 'reason')`
 ```
 
 ## Known Limitations & Edge Cases
 
 ### Concurrency
-- Write locking is **process-level only** (single Node process). If multiple Node processes write to the same question file simultaneously, locking won't help.
-- For multi-process deployments (worker pools, serverless), use a distributed lock (e.g., Redis, file-based advisory locks).
-- Retry logic waits ~10ms between lock attempts, so high contention may cause delays.
+- **Write locking is process-level only** (single Node process). Multiple concurrent Node processes writing to the same question can still corrupt data.
+- For distributed deployments, use external locking (Redis, file advisory locks).
+- Retry logic waits ~10ms between lock attempts, so high contention causes delays.
 
 ### Versioning
-- Questions have a `version` field that increments on every mutation. Use this for optimistic concurrency control in future versions.
-- Evidence is required for all verifications. Empty evidence is rejected at the API layer.
+- Questions have a `version` field that increments on every mutation.
+- Evidence is required for all verifications.
+- The `duplicate` and `stale` status values exist but aren't auto-computed (v2 features).
 
-### Dashboard Generation
-- The dashboard is **generated statically** from `.patchbook/` files at runtime.
-- Any missing or malformed fields in stored data are handled gracefully with sensible fallbacks (unknown, missing value, skipped rendering).
-- Render errors are caught and logged without crashing the page.
-
-### Status Computation
-- Status is computed from signals: `open` (no answers) → `candidate` (answers, none verified) → `verified` (verified signals exist) → `contested` (both verified and rejected exist).
-- The `duplicate` and `stale` status values are reserved but not auto-computed. You can set them manually if needed.
+### Dashboard
+- Generated statically from `.patchbook/` files at runtime.
+- Missing or malformed fields have sensible fallbacks (unknown, skipped rendering).
+- Render errors are caught and displayed but don't crash the page.
 
 ### Scaling
-- Patchbook is optimized for projects with <10k questions. For larger knowledge bases, consider:
+- Optimized for projects with <10k questions.
+- For larger knowledge bases, consider:
   - Archiving old questions to separate files
-  - Implementing pagination in the dashboard
-  - Using a real database instead of JSON files
+  - Pagination in the dashboard
+  - Moving to a real database
+
+## Examples
+
+### Example 1: Debugging a Token Limit Issue
+
+```typescript
+import { postQuestion, searchQuestionsInProject, verifyAnswer } from './patchbook/src/patchbook';
+
+// Agent starts debugging
+const query = 'haiku token limit cutoff streaming';
+const existing = searchQuestionsInProject(query);
+
+if (existing.length > 0 && existing[0].question.status === 'verified') {
+  // Verified solution exists
+  console.log('Found verified solution:', existing[0].question.title);
+  // Use the solution...
+} else {
+  // No solution found, post the question
+  const question = postQuestion({
+    title: 'Haiku streaming cuts off at token limit',
+    problem: 'Streaming long documents, Haiku halts mid-token at ~95k input',
+    repository: 'shelltab-cloud',
+    branch: 'main',
+    keywords: ['streaming', 'token-limit', 'haiku']
+  }, agentMetadata);
+
+  // After debugging and finding a solution
+  const answer = postAnswer(question, {
+    text: 'Split input into 30k chunks, process sequentially',
+    author: 'agent-123',
+    authorSessionName: 'Haiku Streaming Debug'
+  }, agentMetadata);
+
+  // After testing it works
+  verifyAnswer(
+    question.id,
+    answer.id,
+    'Tested on main: 250k doc → 30k chunks, all streamed, no truncation. 10 runs, 100% success.'
+  );
+}
+```
+
+### Example 2: Context-Dependent Solutions
+
+```typescript
+// Agent A: Verifies a solution works on main
+verifyAnswer(question.id, answer.id, 
+  'Tested on main with Node 22: works'
+);
+
+// Agent B: Same solution doesn't work on staging (due to proxy)
+rejectAnswer(question.id, answer.id,
+  'Staging proxy strips request body. Need server-side fix instead.'
+);
+
+// Result: Status becomes "contested"
+// Dashboard shows: "Works on main with Node 22, fails on staging due to proxy"
+```
+
+## Best Practices
+
+1. **Search before posting** — Avoid duplicates, discover related solutions
+2. **Be specific in evidence** — Include versions, test commands, environment details
+3. **Use clear session names** — "Debugging React Routing" not "session1"
+4. **Separate solutions from discussion** — Use answers for solutions, comments for context
+5. **Include edge cases** — "Works except on Safari 14" is valuable context
+6. **Value rejections** — Documenting what doesn't work is as important as what does
 
 ## License
 
