@@ -148,7 +148,7 @@ describe('Verification API', () => {
     });
 
     it('adds answer to question and moves status to candidate', () => {
-      const answer = postAnswer(
+      const { answer, updatedQuestion } = postAnswer(
         question,
         {
           text: 'Here is the solution',
@@ -176,7 +176,7 @@ describe('Verification API', () => {
     });
 
     it('adds multiple answers', () => {
-      const answer1 = postAnswer(
+      const { answer: answer1 } = postAnswer(
         question,
         {
           text: 'Solution 1',
@@ -189,7 +189,7 @@ describe('Verification API', () => {
       // Reload question after first mutation
       let currentQuestion = getQuestion(question.id)!;
 
-      const answer2 = postAnswer(
+      const { answer: answer2 } = postAnswer(
         currentQuestion,
         {
           text: 'Solution 2',
@@ -207,7 +207,7 @@ describe('Verification API', () => {
     });
 
     it('generates unique answer IDs', () => {
-      const answer1 = postAnswer(
+      const { answer: answer1 } = postAnswer(
         question,
         {
           text: 'Solution 1',
@@ -220,7 +220,7 @@ describe('Verification API', () => {
       // Reload question after first mutation
       let currentQuestion = getQuestion(question.id)!;
 
-      const answer2 = postAnswer(
+      const { answer: answer2 } = postAnswer(
         currentQuestion,
         {
           text: 'Solution 2',
@@ -251,7 +251,7 @@ describe('Verification API', () => {
         agentMetadata
       );
 
-      answer = postAnswer(
+      const { answer: ans } = postAnswer(
         question,
         {
           text: 'Test solution',
@@ -260,13 +260,14 @@ describe('Verification API', () => {
         },
         agentMetadata
       );
+      answer = ans;
 
       // Reload question after answer posted
       question = getQuestion(question.id)!;
     });
 
     it('adds verified signal to answer', () => {
-      const signal = verifyAnswer(question, {
+      const { signal } = verifyAnswer(question, {
         answerId: answer.id,
         sessionId: 'verify-session-1',
         evidence: 'Confirmed in production',
@@ -298,7 +299,7 @@ describe('Verification API', () => {
     });
 
     it('requires evidence when verifying', () => {
-      const signal1 = verifyAnswer(question, {
+      const { signal: signal1 } = verifyAnswer(question, {
         evidence: 'Tested on main: npm test passed, 42 test cases passing',
         answerId: answer.id,
         sessionId: 'verify-session-1',
@@ -309,7 +310,7 @@ describe('Verification API', () => {
       // Reload question after first verify
       let currentQuestion = getQuestion(question.id)!;
 
-      const answer2 = postAnswer(
+      const { answer: answer2 } = postAnswer(
         currentQuestion,
         {
           text: 'Another solution',
@@ -322,7 +323,7 @@ describe('Verification API', () => {
       // Reload question after second answer
       currentQuestion = getQuestion(question.id)!;
 
-      const signal2 = verifyAnswer(currentQuestion, {
+      const { signal: signal2 } = verifyAnswer(currentQuestion, {
         answerId: answer2.id,
         sessionId: 'verify-session-2',
         evidence: 'Works in all test cases including edge cases',
@@ -351,7 +352,7 @@ describe('Verification API', () => {
       }).toThrow('Answer nonexistent-id not found');
     });
 
-    it('allows multiple verifications on same answer', () => {
+    it('throws error when same session verifies same answer twice', () => {
       verifyAnswer(question, {
         evidence: 'Tested and verified',
         answerId: answer.id,
@@ -361,6 +362,29 @@ describe('Verification API', () => {
       // Reload question after first verification
       let currentQuestion = getQuestion(question.id)!;
 
+      // Same sessionId should now throw an error
+      expect(() => {
+        verifyAnswer(currentQuestion, {
+          answerId: answer.id,
+          sessionId: 'verify-session-1',
+          evidence: 'Trying to verify again',
+        });
+      }).toThrow(
+        'Session verify-session-1 has already verified answer'
+      );
+    });
+
+    it('allows different sessions to verify same answer', () => {
+      verifyAnswer(question, {
+        evidence: 'Tested and verified',
+        answerId: answer.id,
+        sessionId: 'verify-session-1',
+      });
+
+      // Reload question after first verification
+      let currentQuestion = getQuestion(question.id)!;
+
+      // Different sessionId should succeed
       verifyAnswer(currentQuestion, {
         answerId: answer.id,
         sessionId: 'verify-session-2',
@@ -392,7 +416,7 @@ describe('Verification API', () => {
         agentMetadata
       );
 
-      answer = postAnswer(
+      const { answer: ans } = postAnswer(
         question,
         {
           text: 'Test solution',
@@ -401,13 +425,14 @@ describe('Verification API', () => {
         },
         agentMetadata
       );
+      answer = ans;
 
       // Reload question after answer posted
       question = getQuestion(question.id)!;
     });
 
     it('adds rejected signal with reason', () => {
-      const signal = rejectAnswer(question, {
+      const { signal } = rejectAnswer(question, {
         answerId: answer.id,
         sessionId: 'reject-session-1',
         reason: 'Does not work in edge cases',
@@ -448,7 +473,7 @@ describe('Verification API', () => {
       }).toThrow('Answer nonexistent-id not found');
     });
 
-    it('allows multiple rejections on same answer', () => {
+    it('throws error when same session rejects same answer twice', () => {
       rejectAnswer(question, {
         answerId: answer.id,
         sessionId: 'reject-session-1',
@@ -458,6 +483,29 @@ describe('Verification API', () => {
       // Reload question after first rejection
       let currentQuestion = getQuestion(question.id)!;
 
+      // Same sessionId should now throw an error
+      expect(() => {
+        rejectAnswer(currentQuestion, {
+          answerId: answer.id,
+          sessionId: 'reject-session-1',
+          reason: 'Trying to reject again',
+        });
+      }).toThrow(
+        'Session reject-session-1 has already rejected answer'
+      );
+    });
+
+    it('allows different sessions to reject same answer', () => {
+      rejectAnswer(question, {
+        answerId: answer.id,
+        sessionId: 'reject-session-1',
+        reason: 'Reason 1',
+      });
+
+      // Reload question after first rejection
+      let currentQuestion = getQuestion(question.id)!;
+
+      // Different sessionId should succeed
       rejectAnswer(currentQuestion, {
         answerId: answer.id,
         sessionId: 'reject-session-2',
@@ -490,7 +538,7 @@ describe('Verification API', () => {
     });
 
     it('marks question as contested when both verified and rejected exist', () => {
-      const answer1 = postAnswer(
+      const { answer: answer1 } = postAnswer(
         question,
         {
           text: 'Solution A',
@@ -503,7 +551,7 @@ describe('Verification API', () => {
       // Reload question after first answer
       let currentQuestion = getQuestion(question.id)!;
 
-      const answer2 = postAnswer(
+      const { answer: answer2 } = postAnswer(
         currentQuestion,
         {
           text: 'Solution B',
@@ -540,7 +588,7 @@ describe('Verification API', () => {
     });
 
     it('marks question as contested regardless of order', () => {
-      const answer1 = postAnswer(
+      const { answer: answer1 } = postAnswer(
         question,
         {
           text: 'Solution A',
@@ -553,7 +601,7 @@ describe('Verification API', () => {
       // Reload question after first answer
       let currentQuestion = getQuestion(question.id)!;
 
-      const answer2 = postAnswer(
+      const { answer: answer2 } = postAnswer(
         currentQuestion,
         {
           text: 'Solution B',
@@ -590,7 +638,7 @@ describe('Verification API', () => {
     });
 
     it('stays contested with multiple verifications and rejections', () => {
-      const answer1 = postAnswer(
+      const { answer: answer1 } = postAnswer(
         question,
         {
           text: 'Solution A',
@@ -603,7 +651,7 @@ describe('Verification API', () => {
       // Reload question after first answer
       let currentQuestion = getQuestion(question.id)!;
 
-      const answer2 = postAnswer(
+      const { answer: answer2 } = postAnswer(
         currentQuestion,
         {
           text: 'Solution B',
@@ -673,7 +721,7 @@ describe('Verification API', () => {
     });
 
     it('returns first verified answer', () => {
-      const answer1 = postAnswer(
+      const { answer: answer1 } = postAnswer(
         question,
         {
           text: 'Solution 1',
@@ -686,7 +734,7 @@ describe('Verification API', () => {
       // Reload question after first answer
       let currentQuestion = getQuestion(question.id)!;
 
-      const answer2 = postAnswer(
+      const { answer: answer2 } = postAnswer(
         currentQuestion,
         {
           text: 'Solution 2',
@@ -732,7 +780,7 @@ describe('Verification API', () => {
     });
 
     it('returns first verified even when multiple verified', () => {
-      const answer1 = postAnswer(
+      const { answer: answer1 } = postAnswer(
         question,
         {
           text: 'Solution 1',
@@ -745,7 +793,7 @@ describe('Verification API', () => {
       // Reload question after first answer
       let currentQuestion = getQuestion(question.id)!;
 
-      const answer2 = postAnswer(
+      const { answer: answer2 } = postAnswer(
         currentQuestion,
         {
           text: 'Solution 2',
@@ -791,7 +839,7 @@ describe('Verification API', () => {
     });
 
     it('returns verified answer even with rejected ones present', () => {
-      const answer1 = postAnswer(
+      const { answer: answer1 } = postAnswer(
         question,
         {
           text: 'Solution 1',
@@ -804,7 +852,7 @@ describe('Verification API', () => {
       // Reload question after first answer
       let currentQuestion = getQuestion(question.id)!;
 
-      const answer2 = postAnswer(
+      const { answer: answer2 } = postAnswer(
         currentQuestion,
         {
           text: 'Solution 2',
@@ -839,7 +887,7 @@ describe('Verification API', () => {
     });
 
     it('ranks answer with 2 verifications higher than answer with 1 verification', () => {
-      const answer1 = postAnswer(
+      const { answer: answer1 } = postAnswer(
         question,
         {
           text: 'Solution 1',
@@ -852,7 +900,7 @@ describe('Verification API', () => {
       // Reload question after first answer
       let currentQuestion = getQuestion(question.id)!;
 
-      const answer2 = postAnswer(
+      const { answer: answer2 } = postAnswer(
         currentQuestion,
         {
           text: 'Solution 2',
@@ -898,7 +946,7 @@ describe('Verification API', () => {
     });
 
     it('ranks answer with 2 verifications + 1 rejection higher than answer with 1 verification', () => {
-      const answer1 = postAnswer(
+      const { answer: answer1 } = postAnswer(
         question,
         {
           text: 'Solution 1',
@@ -911,7 +959,7 @@ describe('Verification API', () => {
       // Reload question after first answer
       let currentQuestion = getQuestion(question.id)!;
 
-      const answer2 = postAnswer(
+      const { answer: answer2 } = postAnswer(
         currentQuestion,
         {
           text: 'Solution 2',
@@ -967,7 +1015,7 @@ describe('Verification API', () => {
 
     it('ranks old answer with 2 verifications higher than brand new answer with 0 verifications', () => {
       // Create first answer and verify it twice (old answer)
-      const oldAnswer = postAnswer(
+      const { answer: oldAnswer } = postAnswer(
         question,
         {
           text: 'Proven solution from long ago',
@@ -999,7 +1047,7 @@ describe('Verification API', () => {
       currentQuestion = getQuestion(question.id)!;
 
       // Immediately create a new answer (very recent, no verifications)
-      const newAnswer = postAnswer(
+      const { answer: newAnswer } = postAnswer(
         currentQuestion,
         {
           text: 'Brand new unverified solution',
@@ -1037,7 +1085,7 @@ describe('Verification API', () => {
     });
 
     it('adds comment separate from answers', () => {
-      const comment = postComment(
+      const { comment } = postComment(
         question,
         'This is a helpful comment',
         'bob',
@@ -1061,7 +1109,7 @@ describe('Verification API', () => {
     });
 
     it('adds multiple comments', () => {
-      const comment1 = postComment(
+      const { comment: comment1 } = postComment(
         question,
         'First comment',
         'bob',
@@ -1072,7 +1120,7 @@ describe('Verification API', () => {
       // Reload question after first comment
       let currentQuestion = getQuestion(question.id)!;
 
-      const comment2 = postComment(
+      const { comment: comment2 } = postComment(
         currentQuestion,
         'Second comment',
         'charlie',
@@ -1088,7 +1136,7 @@ describe('Verification API', () => {
     });
 
     it('keeps comments separate from answers', () => {
-      const answer = postAnswer(
+      const { answer } = postAnswer(
         question,
         {
           text: 'Test solution',
@@ -1101,7 +1149,7 @@ describe('Verification API', () => {
       // Reload question after answer
       let currentQuestion = getQuestion(question.id)!;
 
-      const comment = postComment(
+      const { comment } = postComment(
         currentQuestion,
         'Additional context',
         'charlie',
@@ -1120,7 +1168,7 @@ describe('Verification API', () => {
     });
 
     it('generates unique comment IDs', () => {
-      const comment1 = postComment(
+      const { comment: comment1 } = postComment(
         question,
         'Comment 1',
         'bob',
@@ -1131,7 +1179,7 @@ describe('Verification API', () => {
       // Reload question after first comment
       let currentQuestion = getQuestion(question.id)!;
 
-      const comment2 = postComment(
+      const { comment: comment2 } = postComment(
         currentQuestion,
         'Comment 2',
         'bob',
@@ -1181,7 +1229,7 @@ describe('Verification API', () => {
     });
 
     it('returns verified when has verified answer', () => {
-      const answer = postAnswer(
+      const { answer } = postAnswer(
         question,
         {
           text: 'Solution',
@@ -1206,7 +1254,7 @@ describe('Verification API', () => {
     });
 
     it('returns candidate when has only rejected answers', () => {
-      const answer = postAnswer(
+      const { answer } = postAnswer(
         question,
         {
           text: 'Solution',
@@ -1231,7 +1279,7 @@ describe('Verification API', () => {
     });
 
     it('returns contested when has both verified and rejected', () => {
-      const answer1 = postAnswer(
+      const { answer: answer1 } = postAnswer(
         question,
         {
           text: 'Solution 1',
@@ -1244,7 +1292,7 @@ describe('Verification API', () => {
       // Reload question after first answer
       let currentQuestion = getQuestion(question.id)!;
 
-      const answer2 = postAnswer(
+      const { answer: answer2 } = postAnswer(
         currentQuestion,
         {
           text: 'Solution 2',
@@ -1352,7 +1400,7 @@ describe('Verification API', () => {
       expect(question.status).toBe('open');
 
       // Add answer
-      const answer = postAnswer(
+      const { answer } = postAnswer(
         question,
         {
           text: 'Use React.memo() to prevent unnecessary re-renders',
@@ -1367,7 +1415,7 @@ describe('Verification API', () => {
       expect(currentQuestion.status).toBe('candidate');
 
       // Add comment
-      const comment = postComment(
+      const { comment } = postComment(
         currentQuestion,
         'This is a common performance issue in React',
         'charlie',
@@ -1409,7 +1457,7 @@ describe('Verification API', () => {
         agentMetadata
       );
 
-      const answer1 = postAnswer(
+      const { answer: answer1 } = postAnswer(
         question,
         {
           text: 'Use Redux for all state',
@@ -1422,7 +1470,7 @@ describe('Verification API', () => {
       // Reload question after first answer
       let currentQuestion = getQuestion(question.id)!;
 
-      const answer2 = postAnswer(
+      const { answer: answer2 } = postAnswer(
         currentQuestion,
         {
           text: 'Use React Context API',
@@ -1485,7 +1533,7 @@ describe('Verification API', () => {
 
       expect(question.status).toBe('open');
 
-      const answer = postAnswer(
+      const { answer } = postAnswer(
         question,
         {
           text: 'Test answer',
@@ -1510,7 +1558,7 @@ describe('Verification API', () => {
       expect(currentQuestion.status).toBe('verified');
 
       // Add another answer and reject it
-      const answer2 = postAnswer(
+      const { answer: answer2 } = postAnswer(
         currentQuestion,
         {
           text: 'Alternative answer',
@@ -1902,7 +1950,7 @@ describe('Verification API', () => {
       );
 
       // Add and verify an answer to the second question
-      const answer = postAnswer(
+      const { answer } = postAnswer(
         verifiedQuestion,
         {
           text: 'Use browser DevTools for debugging',
@@ -2017,7 +2065,7 @@ describe('Verification API', () => {
       );
 
       // Contested: verified + rejected answers
-      const answer1 = postAnswer(
+      const { answer: answer1 } = postAnswer(
         contestedQuestion,
         {
           text: 'Use code splitting',
@@ -2029,7 +2077,7 @@ describe('Verification API', () => {
 
       let currentQuestion = getQuestion(contestedQuestion.id)!;
 
-      const answer2 = postAnswer(
+      const { answer: answer2 } = postAnswer(
         currentQuestion,
         {
           text: 'Minimize CSS',
@@ -2093,7 +2141,7 @@ describe('Verification API', () => {
       );
 
       // Single verify: one verified signal
-      const answer1 = postAnswer(
+      const { answer: answer1 } = postAnswer(
         singleVerifyQuestion,
         {
           text: 'Use vitest',
@@ -2111,7 +2159,7 @@ describe('Verification API', () => {
       });
 
       // Multi verify: three verified signals total
-      const answer2 = postAnswer(
+      const { answer: answer2 } = postAnswer(
         multiVerifyQuestion,
         {
           text: 'Use jest',
@@ -2123,7 +2171,7 @@ describe('Verification API', () => {
 
       let q2 = getQuestion(multiVerifyQuestion.id)!;
 
-      const answer3 = postAnswer(
+      const { answer: answer3 } = postAnswer(
         q2,
         {
           text: 'Use mocha',
@@ -2195,7 +2243,7 @@ describe('Verification API', () => {
       );
 
       // No reject: one verified, no rejections
-      const answer1 = postAnswer(
+      const { answer: answer1 } = postAnswer(
         noRejectQuestion,
         {
           text: 'Use map()',
@@ -2213,7 +2261,7 @@ describe('Verification API', () => {
       });
 
       // Contested: one verified + 2 rejections
-      const answer2 = postAnswer(
+      const { answer: answer2 } = postAnswer(
         rejectedQuestion,
         {
           text: 'Use filter()',
@@ -2225,7 +2273,7 @@ describe('Verification API', () => {
 
       let q2 = getQuestion(rejectedQuestion.id)!;
 
-      const answer3 = postAnswer(
+      const { answer: answer3 } = postAnswer(
         q2,
         {
           text: 'Use reduce()',
@@ -2298,7 +2346,7 @@ describe('Verification API', () => {
       );
 
       // Unverified: candidate status (+10), no verified signals
-      const unverAnswer = postAnswer(
+      const { answer: unverAnswer } = postAnswer(
         unverifiedQuestion,
         {
           text: 'Use redis',
@@ -2309,7 +2357,7 @@ describe('Verification API', () => {
       );
 
       // Highly verified: verified status (+20), multiple verified signals (+5 each = 10 total for 2)
-      const answer1 = postAnswer(
+      const { answer: answer1 } = postAnswer(
         highlyVerifiedQuestion,
         {
           text: 'Use memcached',

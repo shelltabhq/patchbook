@@ -215,6 +215,16 @@ export function verifyAnswer(
     throw new Error(`Answer ${input.answerId} not found`);
   }
 
+  // Check if this session has already verified this answer
+  const alreadyVerified = answer.signals.some(
+    (s) => s.type === 'verified' && s.sessionId === input.sessionId
+  );
+  if (alreadyVerified) {
+    throw new Error(
+      `Session ${input.sessionId} has already verified answer ${input.answerId}`
+    );
+  }
+
   // 2. Create new question object (don't mutate caller's)
   const updated = structuredClone(fresh);
   const updatedAnswer = updated.answers.find((a) => a.id === input.answerId);
@@ -291,6 +301,16 @@ export function rejectAnswer(
   const answer = fresh.answers.find((a) => a.id === input.answerId);
   if (!answer) {
     throw new Error(`Answer ${input.answerId} not found`);
+  }
+
+  // Check if this session has already rejected this answer
+  const alreadyRejected = answer.signals.some(
+    (s) => s.type === 'rejected' && s.sessionId === input.sessionId
+  );
+  if (alreadyRejected) {
+    throw new Error(
+      `Session ${input.sessionId} has already rejected answer ${input.answerId}`
+    );
   }
 
   // 2. Create new question object (don't mutate caller's)

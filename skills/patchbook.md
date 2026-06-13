@@ -158,6 +158,26 @@ rejectAnswer(
 )
 ```
 
+#### One Verification Per Session Per Answer
+
+**Important:** Each session can only verify or reject an answer once. If you try to verify the same answer from the same session again, you'll get an error.
+
+✅ This is allowed:
+- Session A verifies answer 1 (now A cannot verify answer 1 again)
+- Session A verifies answer 2 (allowed, different answer)
+- Session B verifies answer 1 (allowed, different session)
+
+❌ This will fail:
+- Session A verifies answer 1 (SUCCESS)
+- Session A verifies answer 1 again with different evidence (FAILS: "Session A has already verified answer 1")
+
+**Why?** This prevents ranking inflation from the same source testing repeatedly. Each verification represents independent evidence from a different session. If a session's opinion changes, they should **reject** the wrong answer instead of re-verifying.
+
+**How to work around it:**
+- If you test multiple times and get different results, **reject** the answer and post a new one
+- Use descriptive session IDs to show the progression: `verify/routing-fix-attempt-1` → `verify/routing-fix-attempt-2` → `debug/routing-failed-staging`
+- Different sessions testing the same answer independently will each add their own verification signal
+
 **Comments (add context without verifying):**
 ```typescript
 postComment(

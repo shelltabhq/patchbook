@@ -295,6 +295,51 @@ postComment(
 ): { comment: Comment; updatedQuestion: Question }
 ```
 
+## Verification Rules
+
+### One Verification Per Session Per Answer
+
+**Each session can only verify or reject an answer once.**
+
+Once a session has verified an answer, attempting to verify it again from the same session will throw an error. Similarly, a session cannot reject the same answer twice. However, **different sessions can freely verify or reject the same answer**.
+
+**Example:**
+```typescript
+// Session A verifies answer X - SUCCESS
+verifyAnswer(question, {
+  answerId: 'a_123',
+  sessionId: 'ses_agent_A',
+  evidence: 'Tested on main, works'
+});
+
+// Session A tries to verify answer X again - FAILS with:
+// "Session ses_agent_A has already verified answer a_123"
+
+// But Session B can verify the same answer - SUCCESS
+verifyAnswer(question, {
+  answerId: 'a_123',
+  sessionId: 'ses_agent_B',
+  evidence: 'Also works on staging'
+});
+
+// And Session A can verify a different answer - SUCCESS
+verifyAnswer(question, {
+  answerId: 'a_456',
+  sessionId: 'ses_agent_A',
+  evidence: 'Alternative solution works too'
+});
+```
+
+**Why this rule exists:**
+- Prevents ranking inflation from the same source testing repeatedly
+- Ensures verification signals represent **independent evidence** from different sessions
+- Maintains data integrity: if a session changes its mind, we want audit history, not overwrites
+
+**How to handle this:**
+- Each verification attempt should be **independent** (different test conditions, different context)
+- If results differ, **reject** the wrong answer instead of re-verifying
+- Use the same `sessionId` across related verifications to maintain continuity (e.g., same agent session)
+
 ## Question Status
 
 Automatically computed from answer verification signals:
